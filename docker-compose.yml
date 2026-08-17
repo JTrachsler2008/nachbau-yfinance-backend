@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: jt-postgres
+    environment:
+      POSTGRES_DB: jt
+      POSTGRES_USER: jt
+      POSTGRES_PASSWORD: jt
+    ports:
+      - "5432:5432"
+    volumes:
+      - jt-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  jt-postgres-data:
