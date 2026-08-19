@@ -107,7 +107,7 @@ case "$leak_body" in
 esac
 
 # Der eingeloggte User wird korrekt aus dem Token gelesen
-me=$(curl -s "$BASE_URL/users/me" -H "Authorization: Bearer $token")
+me=$(curl -s "$BASE_URL/users/me" -H "Authorization: Bearer $token" | grep -o '"username":"[^"]*"' | sed -E 's/"username":"([^"]+)"/\1/')
 if [ "$me" = "$USER" ]; then
   echo "  OK   /users/me liefert '$USER' aus dem Token"
   pass=$((pass + 1))
