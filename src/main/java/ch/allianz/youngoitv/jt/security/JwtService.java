@@ -4,6 +4,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Date;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,20 +16,24 @@ public class JwtService {
 
     private final SecretKey signingKey;
     private final long expirationMillis;
+    private final Clock clock;
 
     public JwtService(
             @Value("${app.jwt.secret}") String secret,
-            @Value("${app.jwt.expiration-minutes}") long expirationMinutes) {
+            @Value("${app.jwt.expiration-minutes}") long expirationMinutes,
+            Clock clock) {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes());
         this.expirationMillis = expirationMinutes * 60_000;
+        this.clock = clock;
     }
 
     public String generateToken(String username) {
-        Date now = new Date();
-        Date expiry = new Date(now.getTime() + expirationMillis);
+        Instant now = clock.instant();
+        Date issuedAt = Date.from(now);
+        Date expiry = Date.from(now.plusMillis(expirationMillis));
         return Jwts.builder()
                 .subject(username)
-                .issuedAt(now)
+                .issuedAt(issuedAt)
                 .expiration(expiry)
                 .signWith(signingKey)
                 .compact();
