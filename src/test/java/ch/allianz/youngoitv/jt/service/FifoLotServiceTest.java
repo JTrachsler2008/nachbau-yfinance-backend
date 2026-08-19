@@ -68,6 +68,20 @@ class FifoLotServiceTest {
     }
 
     @Test
+    void sellSpanningTwoLotsConsumesTheFirstFullyAndTheSecondPartially() {
+        List<Transaction> history = List.of(
+                buy(new BigDecimal("10"), new BigDecimal("100"), LocalDate.of(2026, 1, 1)),
+                buy(new BigDecimal("10"), new BigDecimal("150"), LocalDate.of(2026, 2, 1)),
+                sell(new BigDecimal("15"), LocalDate.of(2026, 3, 1)));
+
+        List<Lot> lots = fifoLotService.calculateOpenLots(history);
+
+        assertThat(lots).hasSize(1);
+        assertThat(lots.get(0).quantity()).isEqualByComparingTo("5");
+        assertThat(lots.get(0).purchasePrice()).isEqualByComparingTo("150");
+    }
+
+    @Test
     void splitScalesAllOpenLotsByTheRatio() {
         List<Transaction> history = List.of(
                 buy(new BigDecimal("10"), new BigDecimal("100"), LocalDate.of(2026, 1, 1)),
