@@ -2,8 +2,8 @@
 # Smoke-Test gegen die laufende Anwendung (http://localhost:8080).
 #
 # Voraussetzungen:
-#   1. Postgres laeuft:   podman machine start podman-machine-default && docker start jt-postgres
-#   2. Anwendung laeuft:  IntelliJ (JtApplication) oder ./mvnw spring-boot:run
+#   1. Postgres laeuft:   podman machine start podman-machine-default && docker start portfolio-postgres
+#   2. Anwendung laeuft:  IntelliJ (Application) oder ./mvnw spring-boot:run
 #   3. Test-User existiert (einmalig anlegen, siehe --seed unten)
 #
 # Aufruf:
@@ -31,7 +31,7 @@ check() {
 
 if [ "$1" = "--seed" ]; then
   echo "Lege Test-User '$USER' an (Passwort '$PASS', BCrypt via pgcrypto)..."
-  docker exec jt-postgres psql -U jt -d jt -q \
+  docker exec portfolio-postgres psql -U portfolio -d portfolio -q \
     -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;" \
     -c "INSERT INTO users (username, email, password_hash)
         VALUES ('$USER', '$USER.trachsler@allianz.com', crypt('$PASS', gen_salt('bf', 10)))

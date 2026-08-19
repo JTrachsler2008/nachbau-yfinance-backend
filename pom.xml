@@ -9,9 +9,9 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>ch.allianz.youngoitv</groupId>
-	<artifactId>jt</artifactId>
+	<artifactId>portfolio-backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>jt</name>
+	<name>portfolio-backend</name>
 	<description>Nachbau Aktienportfolio Backend</description>
 	<url/>
 	<licenses>

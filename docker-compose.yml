@@ -1,15 +1,15 @@
 services:
   postgres:
     image: postgres:16
-    container_name: jt-postgres
+    container_name: portfolio-postgres
     environment:
-      POSTGRES_DB: jt
-      POSTGRES_USER: jt
-      POSTGRES_PASSWORD: jt
+      POSTGRES_DB: portfolio
+      POSTGRES_USER: portfolio
+      POSTGRES_PASSWORD: portfolio
     ports:
       - "5432:5432"
     volumes:
-      - jt-postgres-data:/var/lib/postgresql/data
+      - portfolio-postgres-data:/var/lib/postgresql/data
 
 volumes:
-  jt-postgres-data:
+  portfolio-postgres-data:
