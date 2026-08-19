@@ -74,7 +74,7 @@ check "Login mit unbekanntem User -> 401" 401 \
 # YOUNGOITV-412: Login mit korrekten Daten liefert Token
 token=$(curl -s -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" -d "{\"username\":\"$USER\",\"password\":\"$PASS\"}" \
-  | sed -E 's/.*"token":"([^"]+)".*/\1/')
+  | grep -o '"token":"[^"]*"' | sed -E 's/"token":"([^"]+)"/\1/')
 
 if [ -n "$token" ] && [ "${#token}" -gt 50 ]; then
   echo "  OK   Login liefert JWT (${#token} Zeichen)"
