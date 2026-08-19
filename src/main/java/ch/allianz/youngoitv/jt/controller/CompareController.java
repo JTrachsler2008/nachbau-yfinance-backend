@@ -3,6 +3,7 @@ package ch.allianz.youngoitv.jt.controller;
 import ch.allianz.youngoitv.jt.dto.AssetClassComparisonResponseDto;
 import ch.allianz.youngoitv.jt.dto.ComparePortfoliosRequestDto;
 import ch.allianz.youngoitv.jt.dto.ComparePortfoliosResponseDto;
+import ch.allianz.youngoitv.jt.exception.InvalidSimulationParameterException;
 import ch.allianz.youngoitv.jt.service.CompareService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/compare")
 public class CompareController {
 
+    private static final int MAX_PERIOD_YEARS = 100;
+
     private final CompareService compareService;
 
     public CompareController(CompareService compareService) {
@@ -24,6 +27,9 @@ public class CompareController {
 
     @GetMapping("/asset-classes")
     public AssetClassComparisonResponseDto assetClasses(@RequestParam(defaultValue = "10") int period) {
+        if (period < 1 || period > MAX_PERIOD_YEARS) {
+            throw new InvalidSimulationParameterException("period must be between 1 and " + MAX_PERIOD_YEARS + " years");
+        }
         return compareService.getAssetClassComparison(period);
     }
 

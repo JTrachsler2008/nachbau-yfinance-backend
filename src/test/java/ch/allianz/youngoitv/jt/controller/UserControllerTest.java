@@ -1,15 +1,20 @@
 package ch.allianz.youngoitv.jt.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.allianz.youngoitv.jt.entity.UserRole;
+import ch.allianz.youngoitv.jt.repository.UserRepository;
+import ch.allianz.youngoitv.jt.security.JwtService;
 import ch.allianz.youngoitv.jt.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,6 +32,12 @@ class UserControllerTest {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private JwtService jwtService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -66,5 +77,52 @@ class UserControllerTest {
                                 {"username":"kevin","email":"kevin@example.com","password":"password123"}
                                 """))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void registerIgnoresAnyRoleFieldSentByTheClient() throws Exception {
+        MvcResult result = mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"laila","email":"laila@example.com","password":"password123","role":"ADMIN"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        var body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("role").asText()).isEqualTo("PRIVATANLEGER");
+    }
+
+    @Test
+    void nonAdminCannotChangeAnyonesRoleThroughTheRealEndpoint() throws Exception {
+        var caller = userService.register("marco", "marco@example.com", "password123");
+        var target = userService.register("nadia", "nadia@example.com", "password123");
+        String callerToken = jwtService.generateToken(caller.getUsername());
+
+        mockMvc.perform(patch("/users/" + target.getId() + "/role")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + callerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"role":"ADMIN"}
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanChangeAnotherUsersRoleThroughTheRealEndpoint() throws Exception {
+        var admin = userService.register("otto", "otto@example.com", "password123");
+        admin.setRole(UserRole.ADMIN);
+        userRepository.save(admin);
+        var target = userService.register("petra", "petra@example.com", "password123");
+        String adminToken = jwtService.generateToken(admin.getUsername());
+
+        mockMvc.perform(patch("/users/" + target.getId() + "/role")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"role":"MANAGER"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.role").value("MANAGER"));
     }
 }

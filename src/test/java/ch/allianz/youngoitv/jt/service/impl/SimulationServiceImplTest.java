@@ -19,6 +19,7 @@ import ch.allianz.youngoitv.jt.exception.InvalidSimulationParameterException;
 import ch.allianz.youngoitv.jt.repository.PositionRepository;
 import ch.allianz.youngoitv.jt.service.PortfolioService;
 import ch.allianz.youngoitv.jt.util.FxConversionService;
+import ch.allianz.youngoitv.jt.util.PriceLookupService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -42,6 +43,9 @@ class SimulationServiceImplTest {
 
     @Mock
     private FxConversionService fxConversionService;
+
+    @Mock
+    private PriceLookupService priceLookupService;
 
     private Portfolio portfolio(String baseCurrency) {
         Portfolio portfolio = new Portfolio();
@@ -72,7 +76,7 @@ class SimulationServiceImplTest {
         when(marketDataProvider.getQuote("NEW")).thenReturn(Optional.of(new Quote("NEW", new BigDecimal("50"), "CHF", null)));
         when(marketDataProvider.getInfo("NEW")).thenReturn(Optional.empty());
 
-        var result = new SimulationServiceImpl(portfolioService, positionRepository, marketDataProvider, fxConversionService)
+        var result = new SimulationServiceImpl(portfolioService, positionRepository, marketDataProvider, fxConversionService, priceLookupService)
                 .simulatePurchase(1L, "erik", "new", new BigDecimal("10"));
 
         // Bestand: 10*100=1000 CHF. Kauf: 10*50=500 CHF. Simuliert gesamt: 1500 CHF.
@@ -87,6 +91,25 @@ class SimulationServiceImplTest {
     }
 
     @Test
+    void simulatePurchaseConvertsCostToPortfolioBaseCurrencyBeforeSumming() {
+        when(portfolioService.getOwnedOrThrow(1L, "farah")).thenReturn(portfolio("CHF"));
+        when(positionRepository.findByAccountPortfolioId(1L)).thenReturn(List.of());
+        when(marketDataProvider.getQuote("USDSEC")).thenReturn(Optional.of(new Quote("USDSEC", new BigDecimal("100"), "USD", null)));
+        when(marketDataProvider.getInfo("USDSEC")).thenReturn(Optional.empty());
+        // 100 USD * 10 = 1000 USD, Kurs 0.9 -> 900 CHF.
+        when(fxConversionService.convert(eq(new BigDecimal("1000")), eq("USD"), eq("CHF"), any()))
+                .thenReturn(new BigDecimal("900"));
+
+        var result = new SimulationServiceImpl(portfolioService, positionRepository, marketDataProvider, fxConversionService, priceLookupService)
+                .simulatePurchase(1L, "farah", "usdsec", new BigDecimal("10"));
+
+        assertThat(result.cost()).isEqualByComparingTo("1000.00");
+        assertThat(result.currentPortfolioValue()).isEqualByComparingTo("0.00");
+        assertThat(result.simulatedPortfolioValue()).isEqualByComparingTo("900.00");
+        assertThat(result.valueChange()).isEqualByComparingTo("900.00");
+    }
+
+    @Test
     void backtestComputesGainFromHistoricalPriceToCurrentQuote() {
         LocalDate buyDate = LocalDate.of(2024, 1, 2);
         when(marketDataProvider.getHistorical("AAPL", buyDate, LocalDate.now().minusDays(1), Interval.DAILY))
@@ -94,8 +117,9 @@ class SimulationServiceImplTest {
                         new HistoricalPrice(buyDate, new BigDecimal("100")),
                         new HistoricalPrice(buyDate.plusDays(1), new BigDecimal("110")))));
         when(marketDataProvider.getQuote("AAPL")).thenReturn(Optional.of(new Quote("AAPL", new BigDecimal("150"), "USD", null)));
+        when(priceLookupService.findPriceAtOrBefore("AAPL", buyDate)).thenReturn(Optional.of(new BigDecimal("100")));
 
-        var result = new SimulationServiceImpl(portfolioService, positionRepository, marketDataProvider, fxConversionService)
+        var result = new SimulationServiceImpl(portfolioService, positionRepository, marketDataProvider, fxConversionService, priceLookupService)
                 .backtest("aapl", new BigDecimal("2"), buyDate);
 
         assertThat(result.priceAtBuy()).isEqualByComparingTo("100.00");
@@ -111,7 +135,7 @@ class SimulationServiceImplTest {
         when(marketDataProvider.getHistorical(eq("NOPE"), any(), any(), eq(Interval.DAILY)))
                 .thenReturn(Optional.empty());
 
-        var service = new SimulationServiceImpl(portfolioService, positionRepository, marketDataProvider, fxConversionService);
+        var service = new SimulationServiceImpl(portfolioService, positionRepository, marketDataProvider, fxConversionService, priceLookupService);
 
         assertThatThrownBy(() -> service.backtest("nope", BigDecimal.ONE, LocalDate.of(2024, 1, 1)))
                 .isInstanceOf(InvalidSimulationParameterException.class);

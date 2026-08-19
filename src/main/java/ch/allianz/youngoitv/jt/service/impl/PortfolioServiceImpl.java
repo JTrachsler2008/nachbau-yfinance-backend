@@ -94,7 +94,7 @@ public class PortfolioServiceImpl implements PortfolioService {
         Portfolio portfolio = portfolioRepository.findById(portfolioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Portfolio " + portfolioId + " not found"));
 
-        if (!portfolio.getUser().getId().equals(owner.getId())) {
+        if (!ownerCheckService.isOwner(portfolio, owner)) {
             throw new UnauthorizedAccessException(
                     "Only the owner of portfolio " + portfolioId + " may assign a manager");
         }

@@ -4,6 +4,7 @@ import ch.allianz.youngoitv.jt.dto.RebalancingEventDto;
 import ch.allianz.youngoitv.jt.dto.SparplanChartPointDto;
 import ch.allianz.youngoitv.jt.dto.SparplanRequestDto;
 import ch.allianz.youngoitv.jt.dto.SparplanResponseDto;
+import ch.allianz.youngoitv.jt.exception.InvalidSimulationParameterException;
 import ch.allianz.youngoitv.jt.service.RebalancingMode;
 import ch.allianz.youngoitv.jt.service.SparplanSimulationService;
 import ch.allianz.youngoitv.jt.util.PriceLookupService;
@@ -41,6 +42,12 @@ public class SparplanSimulationServiceImpl implements SparplanSimulationService 
 
     @Override
     public SparplanResponseDto simulate(SparplanRequestDto request) {
+        if (request.intervalMonths() < 1) {
+            throw new InvalidSimulationParameterException("intervalMonths must be at least 1");
+        }
+        if (request.rebalancing() && request.rebalancingIntervalMonths() < 1) {
+            throw new InvalidSimulationParameterException("rebalancingIntervalMonths must be at least 1");
+        }
         Map<String, BigDecimal> weightFractions = normalizeToFractionsSummingToOne(request.weightsPercent());
 
         LocalDate from = request.startDate().withDayOfMonth(1);

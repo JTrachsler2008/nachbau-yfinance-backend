@@ -18,12 +18,20 @@ import org.springframework.stereotype.Service;
 public class OwnerCheckService {
 
     public boolean isAuthorizedForPortfolio(Portfolio portfolio, User principal) {
-        if (portfolio.getUser().getId().equals(principal.getId())) {
+        if (isOwner(portfolio, principal)) {
             return true;
         }
         return principal.getRole() == UserRole.MANAGER
                 && portfolio.getManager() != null
                 && principal.getId().equals(portfolio.getManager().getId());
+    }
+
+    /**
+     * Strikte Eigentuemer-Prüfung ohne den Manager-Fall - fuer Vorgaenge, die bewusst nur dem
+     * tatsaechlichen Eigentuemer vorbehalten sind (z.B. Manager-Zuweisung selbst).
+     */
+    public boolean isOwner(Portfolio portfolio, User principal) {
+        return portfolio.getUser().getId().equals(principal.getId());
     }
 
     public boolean isAuthorizedForAccount(Account account, User principal) {

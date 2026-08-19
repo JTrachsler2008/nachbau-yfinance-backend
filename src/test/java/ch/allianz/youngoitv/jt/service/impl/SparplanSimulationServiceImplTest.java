@@ -66,6 +66,108 @@ class SparplanSimulationServiceImplTest {
     }
 
     @Test
+    void tradesSumToZeroEvenWhenInputWeightsDoNotAddUpTo100() {
+        lenient().when(priceLookupService.findPriceAtOrBefore(eq("AAA"), any()))
+                .thenReturn(Optional.of(new BigDecimal("100")));
+        lenient().when(priceLookupService.findPriceAtOrBefore(eq("BBB"), any()))
+                .thenReturn(Optional.of(new BigDecimal("50")));
+        SparplanSimulationServiceImpl service = new SparplanSimulationServiceImpl(priceLookupService);
+
+        // Gewichte summieren sich bewusst auf 90 statt 100 - normalizeToFractionsSummingToOne muss
+        // durch die tatsaechliche Summe (90) teilen, nicht durch eine hartkodierte 100.
+        var request = new SparplanRequestDto(
+                LocalDate.now().minusMonths(3).withDayOfMonth(1), new BigDecimal("1000"), 1,
+                Map.of("AAA", new BigDecimal("60"), "BBB", new BigDecimal("30")),
+                true, 1, RebalancingMode.INTERVAL, BigDecimal.TEN);
+
+        var result = service.simulate(request);
+
+        assertThat(result.rebalancingEvents()).isNotEmpty();
+        for (var event : result.rebalancingEvents()) {
+            BigDecimal sumOfTrades = event.trades().values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+            assertThat(sumOfTrades).isEqualByComparingTo(BigDecimal.ZERO);
+        }
+        // 60/(60+30)=2/3 der Zielallokation, nicht 60%.
+        assertThat(result.targetAllocationPercent().get("AAA")).isEqualByComparingTo("66.67");
+    }
+
+    @Test
+    void thresholdRebalancingTriggersWhenAllocationDriftsBeyondBand() {
+        lenient().when(priceLookupService.findPriceAtOrBefore(eq("AAA"), any()))
+                .thenAnswer(invocation -> {
+                    LocalDate date = invocation.getArgument(1);
+                    // AAA verdoppelt sich nach dem ersten Monat -> Allokation driftet klar ueber jedes Band.
+                    boolean firstMonth = date.isBefore(LocalDate.now().minusMonths(2).withDayOfMonth(1).plusMonths(1));
+                    return Optional.of(firstMonth ? new BigDecimal("100") : new BigDecimal("200"));
+                });
+        lenient().when(priceLookupService.findPriceAtOrBefore(eq("BBB"), any()))
+                .thenReturn(Optional.of(new BigDecimal("100")));
+        SparplanSimulationServiceImpl service = new SparplanSimulationServiceImpl(priceLookupService);
+
+        var request = new SparplanRequestDto(
+                LocalDate.now().minusMonths(2).withDayOfMonth(1), new BigDecimal("1000"), 1,
+                Map.of("AAA", new BigDecimal("50"), "BBB", new BigDecimal("50")),
+                true, 12, RebalancingMode.THRESHOLD, new BigDecimal("5"));
+
+        var result = service.simulate(request);
+
+        assertThat(result.rebalancingEvents()).isNotEmpty();
+        assertThat(result.rebalancingEvents()).allSatisfy(event -> assertThat(event.reason()).isEqualTo("schwelle"));
+        for (var event : result.rebalancingEvents()) {
+            BigDecimal sumOfTrades = event.trades().values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+            assertThat(sumOfTrades).isEqualByComparingTo(BigDecimal.ZERO);
+        }
+    }
+
+    @Test
+    void thresholdRebalancingDoesNotTriggerWhenAllocationStaysWithinBand() {
+        lenient().when(priceLookupService.findPriceAtOrBefore(eq("AAA"), any()))
+                .thenReturn(Optional.of(new BigDecimal("100")));
+        lenient().when(priceLookupService.findPriceAtOrBefore(eq("BBB"), any()))
+                .thenReturn(Optional.of(new BigDecimal("100")));
+        SparplanSimulationServiceImpl service = new SparplanSimulationServiceImpl(priceLookupService);
+
+        var request = new SparplanRequestDto(
+                LocalDate.now().minusMonths(2).withDayOfMonth(1), new BigDecimal("1000"), 1,
+                Map.of("AAA", new BigDecimal("50"), "BBB", new BigDecimal("50")),
+                true, 12, RebalancingMode.THRESHOLD, new BigDecimal("5"));
+
+        var result = service.simulate(request);
+
+        assertThat(result.rebalancingEvents()).isEmpty();
+    }
+
+    @Test
+    void zeroIntervalMonthsThrowsInsteadOfDivisionByZero() {
+        var request = new SparplanRequestDto(
+                LocalDate.now().minusMonths(1).withDayOfMonth(1), new BigDecimal("1000"), 0,
+                Map.of("AAA", new BigDecimal("100")), false, 12, RebalancingMode.INTERVAL, BigDecimal.TEN);
+
+        assertThat(org.assertj.core.api.Assertions.catchThrowable(
+                        () -> new SparplanSimulationServiceImpl(priceLookupService).simulate(request)))
+                .isInstanceOf(ch.allianz.youngoitv.jt.exception.InvalidSimulationParameterException.class);
+    }
+
+    @Test
+    void singleMonthSparplanComputesEndValueWithoutCagrDivisionByZero() {
+        lenient().when(priceLookupService.findPriceAtOrBefore(eq("SPY"), any()))
+                .thenReturn(Optional.of(new BigDecimal("100")));
+        SparplanSimulationServiceImpl service = new SparplanSimulationServiceImpl(priceLookupService);
+
+        var request = new SparplanRequestDto(
+                LocalDate.now().withDayOfMonth(1), new BigDecimal("1000"), 1,
+                Map.of("SPY", new BigDecimal("100")), false, 12, RebalancingMode.INTERVAL, BigDecimal.TEN);
+
+        var result = service.simulate(request);
+
+        assertThat(result.chartData()).hasSize(1);
+        assertThat(result.invested()).isEqualByComparingTo("1000.00");
+        assertThat(result.endValue()).isEqualByComparingTo("1000.00");
+        // years=0 zwischen Start und Ende desselben Monats -> CAGR bewusst 0 statt Division durch 0.
+        assertThat(result.cagrPercent()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
     void missingPriceForAPositionIsSkippedInsteadOfFailing() {
         lenient().when(priceLookupService.findPriceAtOrBefore(eq("AAA"), any()))
                 .thenReturn(Optional.of(new BigDecimal("100")));

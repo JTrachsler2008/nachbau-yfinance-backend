@@ -2,6 +2,7 @@ package ch.allianz.youngoitv.jt.controller;
 
 import ch.allianz.youngoitv.jt.dto.BacktestResponseDto;
 import ch.allianz.youngoitv.jt.dto.PurchaseSimulationResponseDto;
+import ch.allianz.youngoitv.jt.exception.InvalidSimulationParameterException;
 import ch.allianz.youngoitv.jt.service.SimulationService;
 import java.math.BigDecimal;
 import java.security.Principal;
@@ -16,6 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/simulate")
 public class SimulationController {
 
+    private static final int MAX_PRECISION = 20;
+    private static final int MAX_SCALE = 20;
+
     private final SimulationService simulationService;
 
     public SimulationController(SimulationService simulationService) {
@@ -28,6 +32,7 @@ public class SimulationController {
             @RequestParam Long portfolioId,
             @RequestParam String symbol,
             @RequestParam BigDecimal quantity) {
+        requireReasonableMagnitude(quantity, "quantity");
         return simulationService.simulatePurchase(portfolioId, principal.getName(), symbol, quantity);
     }
 
@@ -36,6 +41,13 @@ public class SimulationController {
             @RequestParam String symbol,
             @RequestParam BigDecimal quantity,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate purchaseDate) {
+        requireReasonableMagnitude(quantity, "quantity");
         return simulationService.backtest(symbol, quantity, purchaseDate);
+    }
+
+    private void requireReasonableMagnitude(BigDecimal value, String fieldName) {
+        if (value.precision() > MAX_PRECISION || value.scale() > MAX_SCALE || value.scale() < -MAX_SCALE) {
+            throw new InvalidSimulationParameterException(fieldName + " is out of the allowed range");
+        }
     }
 }

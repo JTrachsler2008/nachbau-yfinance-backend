@@ -14,6 +14,7 @@ import ch.allianz.youngoitv.jt.repository.PositionRepository;
 import ch.allianz.youngoitv.jt.service.PortfolioService;
 import ch.allianz.youngoitv.jt.service.SimulationService;
 import ch.allianz.youngoitv.jt.util.FxConversionService;
+import ch.allianz.youngoitv.jt.util.PriceLookupService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -38,16 +39,19 @@ public class SimulationServiceImpl implements SimulationService {
     private final PositionRepository positionRepository;
     private final MarketDataProvider marketDataProvider;
     private final FxConversionService fxConversionService;
+    private final PriceLookupService priceLookupService;
 
     public SimulationServiceImpl(
             PortfolioService portfolioService,
             PositionRepository positionRepository,
             MarketDataProvider marketDataProvider,
-            FxConversionService fxConversionService) {
+            FxConversionService fxConversionService,
+            PriceLookupService priceLookupService) {
         this.portfolioService = portfolioService;
         this.positionRepository = positionRepository;
         this.marketDataProvider = marketDataProvider;
         this.fxConversionService = fxConversionService;
+        this.priceLookupService = priceLookupService;
     }
 
     @Override
@@ -56,12 +60,16 @@ public class SimulationServiceImpl implements SimulationService {
         Portfolio portfolio = portfolioService.getOwnedOrThrow(portfolioId, username);
         String upperSymbol = symbol.toUpperCase();
 
-        BigDecimal currentPrice = marketDataProvider.getQuote(upperSymbol)
-                .map(quote -> quote.price())
+        var quote = marketDataProvider.getQuote(upperSymbol)
                 .orElseThrow(() -> new InvalidSimulationParameterException("No live quote available for " + upperSymbol));
+        BigDecimal currentPrice = quote.price();
         String securityName = marketDataProvider.getInfo(upperSymbol).map(info -> info.name()).orElse(upperSymbol);
 
         BigDecimal cost = currentPrice.multiply(quantity);
+        // Der Kaufpreis fällt in der Handelswährung der Security an - für Summen/Gewichte gegenüber
+        // dem Bestand (bereits in Portfolio-Basiswährung) muss er zuerst umgerechnet werden.
+        BigDecimal costInBaseCurrency = fxConversionService.convert(
+                cost, quote.currency(), portfolio.getBaseCurrency(), LocalDate.now());
 
         List<Position> positions = positionRepository.findByAccountPortfolioId(portfolioId);
         List<WeightEntry> valuedPositions = new ArrayList<>();
@@ -74,7 +82,7 @@ public class SimulationServiceImpl implements SimulationService {
             }
         }
 
-        BigDecimal simulatedTotal = currentTotal.add(cost);
+        BigDecimal simulatedTotal = currentTotal.add(costInBaseCurrency);
 
         List<WeightItemDto> currentWeights = toWeightItems(valuedPositions, currentTotal);
 
@@ -82,9 +90,9 @@ public class SimulationServiceImpl implements SimulationService {
         for (WeightEntry entry : valuedPositions) {
             simulatedWeights.add(new WeightItemDto(entry.symbol(), entry.value(), percentOf(entry.value(), simulatedTotal)));
         }
-        simulatedWeights.add(new WeightItemDto(upperSymbol, cost, percentOf(cost, simulatedTotal)));
+        simulatedWeights.add(new WeightItemDto(upperSymbol, costInBaseCurrency, percentOf(costInBaseCurrency, simulatedTotal)));
 
-        BigDecimal returnChangePercent = percentOf(cost, currentTotal);
+        BigDecimal returnChangePercent = percentOf(costInBaseCurrency, currentTotal);
 
         return new PurchaseSimulationResponseDto(
                 upperSymbol,
@@ -94,7 +102,7 @@ public class SimulationServiceImpl implements SimulationService {
                 cost.setScale(RESULT_SCALE, RoundingMode.HALF_UP),
                 currentTotal.setScale(RESULT_SCALE, RoundingMode.HALF_UP),
                 simulatedTotal.setScale(RESULT_SCALE, RoundingMode.HALF_UP),
-                cost.setScale(RESULT_SCALE, RoundingMode.HALF_UP),
+                costInBaseCurrency.setScale(RESULT_SCALE, RoundingMode.HALF_UP),
                 returnChangePercent,
                 currentWeights,
                 simulatedWeights);
@@ -117,7 +125,11 @@ public class SimulationServiceImpl implements SimulationService {
             throw new InvalidSimulationParameterException("No historical prices available for " + upperSymbol);
         }
 
-        BigDecimal priceAtBuy = prices.get(0).close();
+        // Kaufpreis konsequent ueber die zentrale "naechstgelegener Kurs auf-oder-vor Datum"-Semantik
+        // (PriceLookupService), statt den ersten Eintrag der Rohdatenreihe zu nehmen - deren erster
+        // Punkt bei einem Nicht-Handelstag der naechste Kurs NACH dem Kaufdatum waere.
+        BigDecimal priceAtBuy = priceLookupService.findPriceAtOrBefore(upperSymbol, purchaseDate)
+                .orElse(prices.get(0).close());
         List<BacktestChartPointDto> chartData = new ArrayList<>();
         for (HistoricalPrice price : prices) {
             chartData.add(new BacktestChartPointDto(price.date(), price.close(), price.close().multiply(quantity)));

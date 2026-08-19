@@ -71,7 +71,9 @@ class SimulationControllerTest {
     void simulatePurchaseOnEmptyPortfolioReturnsFullWeightForNewPosition() throws Exception {
         String token = tokenFor("aaron2");
         long portfolioId = createPortfolio(token);
-        when(marketDataProvider.getQuote("TSLA")).thenReturn(Optional.of(new Quote("TSLA", new BigDecimal("200"), "USD", null)));
+        // Gleiche Waehrung wie das Portfolio (CHF), damit kein FX-Kurs benoetigt wird - die
+        // FX-Umrechnung selbst ist separat in SimulationServiceImplTest abgedeckt.
+        when(marketDataProvider.getQuote("TSLA")).thenReturn(Optional.of(new Quote("TSLA", new BigDecimal("200"), "CHF", null)));
         when(marketDataProvider.getInfo("TSLA")).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/simulate/purchase")

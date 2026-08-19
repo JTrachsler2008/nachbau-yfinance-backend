@@ -1,8 +1,5 @@
 package ch.allianz.youngoitv.jt.service.impl;
 
-import ch.allianz.youngoitv.jt.client.HistoricalPrice;
-import ch.allianz.youngoitv.jt.client.Interval;
-import ch.allianz.youngoitv.jt.client.MarketDataProvider;
 import ch.allianz.youngoitv.jt.dto.AssetClassComparisonResponseDto;
 import ch.allianz.youngoitv.jt.dto.AssetClassDefinitionDto;
 import ch.allianz.youngoitv.jt.dto.ComparePortfoliosRequestDto;
@@ -11,6 +8,7 @@ import ch.allianz.youngoitv.jt.dto.NormalizedSeriesPointDto;
 import ch.allianz.youngoitv.jt.dto.PortfolioComparisonPointDto;
 import ch.allianz.youngoitv.jt.dto.WeightedSymbolDto;
 import ch.allianz.youngoitv.jt.service.CompareService;
+import ch.allianz.youngoitv.jt.util.PriceLookupService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -20,9 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Set;
-import java.util.TreeMap;
 import org.springframework.stereotype.Service;
 
 /**
@@ -31,7 +27,9 @@ import org.springframework.stereotype.Service;
  * tatsaechlich angefragte Ticker-Symbol als Referenz (behebt die im Original fehlerhafte
  * Label-zu-Symbol-Zuordnung, z.B. "MSCI World" -&gt; korrekt {@code URTH} statt {@code MSCI}, "SMI"
  * -&gt; korrekt {@code EWL} statt {@code SMI}) - es gibt keine serverseitige Namens-Uebersetzung, nur
- * die feste, dokumentierte Referenzliste unten.
+ * die feste, dokumentierte Referenzliste unten. Nutzt fuer jeden Datenpunkt ausschliesslich
+ * {@link PriceLookupService} (zentrale "naechstgelegener Kurs auf-oder-vor Datum"-Semantik) statt
+ * einer eigenen Kurs-Lookup-Logik.
  */
 @Service
 public class CompareServiceImpl implements CompareService {
@@ -50,43 +48,44 @@ public class CompareServiceImpl implements CompareService {
             new AssetClassDefinitionDto("AGG", "Anleihen"),
             new AssetClassDefinitionDto("BTC-USD", "Bitcoin"));
 
-    private final MarketDataProvider marketDataProvider;
+    private final PriceLookupService priceLookupService;
 
-    public CompareServiceImpl(MarketDataProvider marketDataProvider) {
-        this.marketDataProvider = marketDataProvider;
+    public CompareServiceImpl(PriceLookupService priceLookupService) {
+        this.priceLookupService = priceLookupService;
     }
 
     @Override
     public AssetClassComparisonResponseDto getAssetClassComparison(int periodYears) {
         LocalDate from = LocalDate.now().minusYears(periodYears);
         LocalDate to = LocalDate.now().minusDays(1);
+        List<LocalDate> months = monthlyGrid(from, to);
 
-        Map<String, NavigableMap<LocalDate, BigDecimal>> seriesBySymbol = new LinkedHashMap<>();
-        List<AssetClassDefinitionDto> available = new ArrayList<>();
-        for (AssetClassDefinitionDto definition : ASSET_CLASSES) {
-            NavigableMap<LocalDate, BigDecimal> series = fetchMonthlySeries(definition.symbol(), from, to);
-            if (series != null) {
-                seriesBySymbol.put(definition.symbol(), series);
-                available.add(definition);
-            }
-        }
-
-        List<LocalDate> allDates = collectSortedDates(seriesBySymbol.values());
         Map<String, BigDecimal> baseValues = new HashMap<>();
-        List<NormalizedSeriesPointDto> points = new ArrayList<>();
-        for (LocalDate date : allDates) {
-            Map<String, BigDecimal> valuesBySymbol = new LinkedHashMap<>();
-            for (AssetClassDefinitionDto definition : available) {
-                BigDecimal normalized = normalizedValueAt(seriesBySymbol.get(definition.symbol()), baseValues, definition.symbol(), date);
+        Map<LocalDate, Map<String, BigDecimal>> valuesByMonth = new LinkedHashMap<>();
+        Set<String> symbolsWithData = new LinkedHashSet<>();
+
+        for (LocalDate month : months) {
+            for (AssetClassDefinitionDto definition : ASSET_CLASSES) {
+                BigDecimal normalized = normalizedValueAt(definition.symbol(), baseValues, month);
                 if (normalized != null) {
-                    valuesBySymbol.put(definition.symbol(), normalized);
+                    symbolsWithData.add(definition.symbol());
+                    valuesByMonth.computeIfAbsent(month, ignored -> new LinkedHashMap<>())
+                            .put(definition.symbol(), normalized);
                 }
             }
-            if (!valuesBySymbol.isEmpty()) {
-                points.add(new NormalizedSeriesPointDto(date, valuesBySymbol));
+        }
+
+        List<AssetClassDefinitionDto> available = ASSET_CLASSES.stream()
+                .filter(definition -> symbolsWithData.contains(definition.symbol()))
+                .toList();
+        List<NormalizedSeriesPointDto> series = new ArrayList<>();
+        for (LocalDate month : months) {
+            Map<String, BigDecimal> values = valuesByMonth.get(month);
+            if (values != null && !values.isEmpty()) {
+                series.add(new NormalizedSeriesPointDto(month, values));
             }
         }
-        return new AssetClassComparisonResponseDto(available, points);
+        return new AssetClassComparisonResponseDto(available, series);
     }
 
     @Override
@@ -94,78 +93,52 @@ public class CompareServiceImpl implements CompareService {
         int periodYears = request.periodYears() != null ? request.periodYears() : 10;
         LocalDate from = LocalDate.now().minusYears(periodYears);
         LocalDate to = LocalDate.now().minusDays(1);
+        List<LocalDate> months = monthlyGrid(from, to);
 
-        Set<String> allSymbols = new LinkedHashSet<>();
-        request.portfolioA().positions().forEach(w -> allSymbols.add(w.symbol()));
-        request.portfolioB().positions().forEach(w -> allSymbols.add(w.symbol()));
-
-        Map<String, NavigableMap<LocalDate, BigDecimal>> seriesBySymbol = new HashMap<>();
-        for (String symbol : allSymbols) {
-            NavigableMap<LocalDate, BigDecimal> series = fetchMonthlySeries(symbol, from, to);
-            if (series != null) {
-                seriesBySymbol.put(symbol, series);
-            }
-        }
-
-        List<LocalDate> allDates = collectSortedDates(seriesBySymbol.values());
         Map<String, BigDecimal> baseValues = new HashMap<>();
         List<PortfolioComparisonPointDto> points = new ArrayList<>();
-        for (LocalDate date : allDates) {
-            BigDecimal valueA = weightedNormalizedValue(request.portfolioA().positions(), seriesBySymbol, baseValues, date);
-            BigDecimal valueB = weightedNormalizedValue(request.portfolioB().positions(), seriesBySymbol, baseValues, date);
+        for (LocalDate month : months) {
+            BigDecimal valueA = weightedNormalizedValue(request.portfolioA().positions(), baseValues, month);
+            BigDecimal valueB = weightedNormalizedValue(request.portfolioB().positions(), baseValues, month);
             if (valueA != null || valueB != null) {
-                points.add(new PortfolioComparisonPointDto(date, valueA, valueB));
+                points.add(new PortfolioComparisonPointDto(month, valueA, valueB));
             }
         }
         return new ComparePortfoliosResponseDto(request.portfolioA().name(), request.portfolioB().name(), points);
     }
 
+    private List<LocalDate> monthlyGrid(LocalDate from, LocalDate to) {
+        List<LocalDate> months = new ArrayList<>();
+        LocalDate cursor = from.withDayOfMonth(1);
+        LocalDate end = to.withDayOfMonth(1);
+        while (!cursor.isAfter(end)) {
+            months.add(cursor);
+            cursor = cursor.plusMonths(1);
+        }
+        return months;
+    }
+
     /**
-     * Fehlende/nicht abrufbare Kursdaten fuer ein einzelnes Symbol fuehren zu einem degradierten
-     * Ergebnis (dieses Symbol wird aus dem Vergleich ausgeschlossen), nie zu einem 500.
+     * Fehlende/nicht abrufbare Kursdaten fuer ein einzelnes Symbol an einem Datum fuehren zu einem
+     * degradierten Ergebnis (dieser Datenpunkt/dieses Symbol wird ausgeschlossen), nie zu einem 500.
      */
-    private NavigableMap<LocalDate, BigDecimal> fetchMonthlySeries(String symbol, LocalDate from, LocalDate to) {
-        return marketDataProvider.getHistorical(symbol, from, to, Interval.MONTHLY)
-                .filter(prices -> !prices.isEmpty())
-                .map(prices -> {
-                    NavigableMap<LocalDate, BigDecimal> series = new TreeMap<>();
-                    for (HistoricalPrice price : prices) {
-                        series.put(price.date().withDayOfMonth(1), price.close());
+    private BigDecimal normalizedValueAt(String symbol, Map<String, BigDecimal> baseValues, LocalDate date) {
+        return priceLookupService.findPriceAtOrBefore(symbol, date)
+                .map(price -> {
+                    baseValues.putIfAbsent(symbol, price);
+                    BigDecimal base = baseValues.get(symbol);
+                    if (base.compareTo(BigDecimal.ZERO) == 0) {
+                        return null;
                     }
-                    return series;
+                    return price.divide(base, NORMALIZATION_SCALE, RoundingMode.HALF_UP)
+                            .multiply(HUNDRED)
+                            .setScale(RESULT_SCALE, RoundingMode.HALF_UP);
                 })
                 .orElse(null);
     }
 
-    private List<LocalDate> collectSortedDates(Iterable<NavigableMap<LocalDate, BigDecimal>> allSeries) {
-        Set<LocalDate> dates = new java.util.TreeSet<>();
-        for (var series : allSeries) {
-            dates.addAll(series.keySet());
-        }
-        return new ArrayList<>(dates);
-    }
-
-    private BigDecimal normalizedValueAt(
-            NavigableMap<LocalDate, BigDecimal> series, Map<String, BigDecimal> baseValues, String symbol, LocalDate date) {
-        var entry = series.floorEntry(date);
-        if (entry == null) {
-            return null;
-        }
-        baseValues.putIfAbsent(symbol, entry.getValue());
-        BigDecimal base = baseValues.get(symbol);
-        if (base.compareTo(BigDecimal.ZERO) == 0) {
-            return null;
-        }
-        return entry.getValue().divide(base, NORMALIZATION_SCALE, RoundingMode.HALF_UP)
-                .multiply(HUNDRED)
-                .setScale(RESULT_SCALE, RoundingMode.HALF_UP);
-    }
-
     private BigDecimal weightedNormalizedValue(
-            List<WeightedSymbolDto> positions,
-            Map<String, NavigableMap<LocalDate, BigDecimal>> seriesBySymbol,
-            Map<String, BigDecimal> baseValues,
-            LocalDate date) {
+            List<WeightedSymbolDto> positions, Map<String, BigDecimal> baseValues, LocalDate date) {
         BigDecimal totalWeight = positions.stream().map(WeightedSymbolDto::weight).reduce(BigDecimal.ZERO, BigDecimal::add);
         if (totalWeight.compareTo(BigDecimal.ZERO) == 0) {
             return null;
@@ -173,11 +146,7 @@ public class CompareServiceImpl implements CompareService {
 
         BigDecimal total = BigDecimal.ZERO;
         for (WeightedSymbolDto position : positions) {
-            var series = seriesBySymbol.get(position.symbol());
-            if (series == null) {
-                return null;
-            }
-            BigDecimal normalized = normalizedValueAt(series, baseValues, position.symbol(), date);
+            BigDecimal normalized = normalizedValueAt(position.symbol(), baseValues, date);
             if (normalized == null) {
                 return null;
             }

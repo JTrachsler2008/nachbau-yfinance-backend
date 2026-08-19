@@ -53,12 +53,10 @@ class CompareControllerTest {
 
     @Test
     void assetClassesEndpointReturnsOnlyAvailableAssetClasses() throws Exception {
-        when(marketDataProvider.getHistorical(eq("SPY"), any(), any(), eq(Interval.MONTHLY)))
-                .thenReturn(Optional.of(List.of(
-                        new HistoricalPrice(LocalDate.of(2024, 1, 1), new BigDecimal("100")),
-                        new HistoricalPrice(LocalDate.of(2024, 2, 1), new BigDecimal("105")))));
+        when(marketDataProvider.getHistorical(eq("SPY"), any(), any(), eq(Interval.DAILY)))
+                .thenReturn(Optional.of(List.of(new HistoricalPrice(LocalDate.of(2020, 1, 1), new BigDecimal("100")))));
         when(marketDataProvider.getHistorical(
-                org.mockito.ArgumentMatchers.argThat(s -> s != null && !s.equals("SPY")), any(), any(), eq(Interval.MONTHLY)))
+                org.mockito.ArgumentMatchers.argThat(s -> s != null && !s.equals("SPY")), any(), any(), eq(Interval.DAILY)))
                 .thenReturn(Optional.empty());
 
         mockMvc.perform(get("/compare/asset-classes")
@@ -67,15 +65,15 @@ class CompareControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.assetClasses.length()").value(1))
                 .andExpect(jsonPath("$.assetClasses[0].symbol").value("SPY"))
-                .andExpect(jsonPath("$.series.length()").value(2));
+                .andExpect(jsonPath("$.series[0].valuesBySymbol.SPY").value(100.0));
     }
 
     @Test
     void comparePortfoliosEndpointReturnsSeriesForBothPortfolios() throws Exception {
-        when(marketDataProvider.getHistorical(eq("AAA"), any(), any(), eq(Interval.MONTHLY)))
-                .thenReturn(Optional.of(List.of(new HistoricalPrice(LocalDate.of(2024, 1, 1), new BigDecimal("50")))));
-        when(marketDataProvider.getHistorical(eq("BBB"), any(), any(), eq(Interval.MONTHLY)))
-                .thenReturn(Optional.of(List.of(new HistoricalPrice(LocalDate.of(2024, 1, 1), new BigDecimal("200")))));
+        when(marketDataProvider.getHistorical(eq("AAA"), any(), any(), eq(Interval.DAILY)))
+                .thenReturn(Optional.of(List.of(new HistoricalPrice(LocalDate.of(2020, 1, 1), new BigDecimal("50")))));
+        when(marketDataProvider.getHistorical(eq("BBB"), any(), any(), eq(Interval.DAILY)))
+                .thenReturn(Optional.of(List.of(new HistoricalPrice(LocalDate.of(2020, 1, 1), new BigDecimal("200")))));
 
         mockMvc.perform(post("/compare/portfolios")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor("xander"))

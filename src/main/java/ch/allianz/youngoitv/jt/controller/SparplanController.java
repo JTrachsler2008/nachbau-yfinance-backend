@@ -19,6 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/simulate")
 public class SparplanController {
 
+    private static final int MAX_YEARS_BACK = 40;
+    private static final int MAX_POSITIONS = 20;
+    private static final int MAX_PRECISION = 20;
+    private static final int MAX_SCALE = 20;
+
     private final SparplanSimulationService sparplanSimulationService;
 
     public SparplanController(SparplanSimulationService sparplanSimulationService) {
@@ -36,6 +41,18 @@ public class SparplanController {
             @RequestParam(defaultValue = "INTERVAL") RebalancingMode rebalancingMode,
             @RequestParam(defaultValue = "10") BigDecimal rebalancingBandPercent) {
 
+        if (startDate.isBefore(LocalDate.now().minusYears(MAX_YEARS_BACK))) {
+            throw new InvalidSimulationParameterException("startDate must not be more than " + MAX_YEARS_BACK + " years in the past");
+        }
+        if (intervalMonths < 1) {
+            throw new InvalidSimulationParameterException("intervalMonths must be at least 1");
+        }
+        if (rebalancingIntervalMonths < 1) {
+            throw new InvalidSimulationParameterException("rebalancingIntervalMonths must be at least 1");
+        }
+        requireReasonableMagnitude(amount, "amount");
+        requireReasonableMagnitude(rebalancingBandPercent, "rebalancingBandPercent");
+
         Map<String, BigDecimal> weightsPercent = parsePositions(positions);
         var request = new SparplanRequestDto(
                 startDate, amount, intervalMonths, weightsPercent,
@@ -51,11 +68,25 @@ public class SparplanController {
                 throw new InvalidSimulationParameterException(
                         "Invalid positions entry '" + part + "', expected format SYMBOL:weight");
             }
-            weights.put(kv[0].trim().toUpperCase(), new BigDecimal(kv[1].trim()));
+            BigDecimal weight = new BigDecimal(kv[1].trim());
+            requireReasonableMagnitude(weight, "weight for " + kv[0]);
+            if (weight.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new InvalidSimulationParameterException("weight for " + kv[0] + " must be positive");
+            }
+            weights.put(kv[0].trim().toUpperCase(), weight);
         }
         if (weights.isEmpty()) {
             throw new InvalidSimulationParameterException("No positions given");
         }
+        if (weights.size() > MAX_POSITIONS) {
+            throw new InvalidSimulationParameterException("At most " + MAX_POSITIONS + " positions are supported");
+        }
         return weights;
+    }
+
+    private void requireReasonableMagnitude(BigDecimal value, String fieldName) {
+        if (value.precision() > MAX_PRECISION || value.scale() > MAX_SCALE || value.scale() < -MAX_SCALE) {
+            throw new InvalidSimulationParameterException(fieldName + " is out of the allowed range");
+        }
     }
 }
