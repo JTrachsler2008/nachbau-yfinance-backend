@@ -5,7 +5,7 @@ import ch.allianz.youngoitv.jt.entity.Security;
 
 public interface SecurityService {
 
-    Security create(SecurityCreateRequestDto request);
+    Security create(SecurityCreateRequestDto request, String requesterUsername);
 
     Security getBySymbolOrThrow(String symbol);
 

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.allianz.youngoitv.jt.entity.Portfolio;
 import ch.allianz.youngoitv.jt.entity.User;
+import ch.allianz.youngoitv.jt.entity.UserRole;
 import ch.allianz.youngoitv.jt.repository.PortfolioRepository;
 import ch.allianz.youngoitv.jt.repository.UserRepository;
 import java.time.LocalDateTime;
@@ -28,11 +29,16 @@ class OwnerCheckServiceTest {
     private PortfolioRepository portfolioRepository;
 
     private User createUser(String username) {
+        return createUser(username, UserRole.PRIVATANLEGER);
+    }
+
+    private User createUser(String username, UserRole role) {
         User user = new User();
         user.setUsername(username);
         user.setEmail(username + "@example.com");
         user.setPasswordHash("irrelevant-for-this-test");
         user.setCreatedAt(LocalDateTime.now());
+        user.setRole(role);
         return userRepository.save(user);
     }
 
@@ -61,5 +67,34 @@ class OwnerCheckServiceTest {
         Portfolio portfolio = createPortfolio(owner);
 
         assertThat(ownerCheckService.isAuthorizedForPortfolio(portfolio, stranger)).isFalse();
+    }
+
+    @Test
+    void assignedManagerIsAuthorized() {
+        User owner = createUser("ines");
+        User manager = createUser("juri", UserRole.MANAGER);
+        Portfolio portfolio = createPortfolio(owner);
+        portfolio.setManager(manager);
+        portfolioRepository.save(portfolio);
+
+        assertThat(ownerCheckService.isAuthorizedForPortfolio(portfolio, manager)).isTrue();
+    }
+
+    @Test
+    void managerRoleAloneWithoutAssignmentIsNotAuthorized() {
+        User owner = createUser("kevin");
+        User unassignedManager = createUser("lara", UserRole.MANAGER);
+        Portfolio portfolio = createPortfolio(owner);
+
+        assertThat(ownerCheckService.isAuthorizedForPortfolio(portfolio, unassignedManager)).isFalse();
+    }
+
+    @Test
+    void adminWithoutOwnershipOrManagerAssignmentIsNotAuthorized() {
+        User owner = createUser("mona");
+        User admin = createUser("nora", UserRole.ADMIN);
+        Portfolio portfolio = createPortfolio(owner);
+
+        assertThat(ownerCheckService.isAuthorizedForPortfolio(portfolio, admin)).isFalse();
     }
 }

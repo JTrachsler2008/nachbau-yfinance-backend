@@ -1,5 +1,6 @@
 package ch.allianz.youngoitv.jt.controller;
 
+import ch.allianz.youngoitv.jt.dto.ManagerAssignRequestDto;
 import ch.allianz.youngoitv.jt.dto.PortfolioCreateRequestDto;
 import ch.allianz.youngoitv.jt.dto.PortfolioResponseDto;
 import ch.allianz.youngoitv.jt.dto.PortfolioUpdateRequestDto;
@@ -60,5 +61,12 @@ public class PortfolioController {
     public ResponseEntity<Void> delete(Principal principal, @PathVariable Long id) {
         portfolioService.delete(id, principal.getName());
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/manager")
+    public PortfolioResponseDto assignManager(
+            Principal principal, @PathVariable Long id, @RequestBody ManagerAssignRequestDto request) {
+        var portfolio = portfolioService.assignManager(id, principal.getName(), request.managerUserId());
+        return portfolioMapper.toResponseDto(portfolio);
     }
 }

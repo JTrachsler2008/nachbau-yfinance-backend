@@ -44,6 +44,11 @@ public class GlobalExceptionHandler {
         return badRequest(ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidRoleAssignmentException.class)
+    public ResponseEntity<ErrorResponseDto> handleInvalidRoleAssignment(InvalidRoleAssignmentException ex) {
+        return badRequest(ex.getMessage());
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponseDto> handleResourceNotFound(ResourceNotFoundException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());

@@ -26,6 +26,10 @@ public class Portfolio {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @ManyToOne
+    @JoinColumn(name = "manager_user_id")
+    private User manager;
+
     @Column(nullable = false)
     private String name;
 
@@ -57,6 +61,14 @@ public class Portfolio {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public User getManager() {
+        return manager;
+    }
+
+    public void setManager(User manager) {
+        this.manager = manager;
     }
 
     public String getName() {

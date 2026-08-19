@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.allianz.youngoitv.jt.entity.UserRole;
+import ch.allianz.youngoitv.jt.repository.UserRepository;
 import ch.allianz.youngoitv.jt.security.JwtService;
 import ch.allianz.youngoitv.jt.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -32,15 +34,25 @@ class SecurityControllerTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private String token() {
         userService.register("tina", "tina@example.com", "password123");
         return jwtService.generateToken("tina");
     }
 
+    private String adminToken(String username) {
+        var user = userService.register(username, username + "@example.com", "password123");
+        user.setRole(UserRole.ADMIN);
+        userRepository.save(user);
+        return jwtService.generateToken(username);
+    }
+
     @Test
     void creatingBondWithCouponRateAndMaturityDateSucceeds() throws Exception {
         mockMvc.perform(post("/securities")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken("tina"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"symbol":"BOND1","name":"Test Bond","assetType":"BOND",
@@ -53,7 +65,7 @@ class SecurityControllerTest {
     @Test
     void settingCouponRateOnNonBondReturns400() throws Exception {
         mockMvc.perform(post("/securities")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken("tina"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"symbol":"STOCK1","name":"Test Stock","assetType":"STOCK",
@@ -64,7 +76,7 @@ class SecurityControllerTest {
 
     @Test
     void lookupBySymbolReturnsTheCreatedSecurity() throws Exception {
-        String token = token();
+        String token = adminToken("tina");
         mockMvc.perform(post("/securities")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -84,5 +96,16 @@ class SecurityControllerTest {
         mockMvc.perform(get("/securities/DOESNOTEXIST")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void creatingSecurityWithoutAdminRoleReturns403() throws Exception {
+        mockMvc.perform(post("/securities")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"symbol":"NOPE","name":"Not Allowed","assetType":"STOCK","tradingCurrency":"CHF"}
+                                """))
+                .andExpect(status().isForbidden());
     }
 }

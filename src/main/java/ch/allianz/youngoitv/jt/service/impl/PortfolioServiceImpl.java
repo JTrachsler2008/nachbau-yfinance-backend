@@ -4,6 +4,8 @@ import ch.allianz.youngoitv.jt.dto.PortfolioCreateRequestDto;
 import ch.allianz.youngoitv.jt.dto.PortfolioUpdateRequestDto;
 import ch.allianz.youngoitv.jt.entity.Portfolio;
 import ch.allianz.youngoitv.jt.entity.User;
+import ch.allianz.youngoitv.jt.entity.UserRole;
+import ch.allianz.youngoitv.jt.exception.InvalidRoleAssignmentException;
 import ch.allianz.youngoitv.jt.exception.ResourceNotFoundException;
 import ch.allianz.youngoitv.jt.exception.UnauthorizedAccessException;
 import ch.allianz.youngoitv.jt.repository.PortfolioRepository;
@@ -84,5 +86,29 @@ public class PortfolioServiceImpl implements PortfolioService {
     public void delete(Long portfolioId, String username) {
         Portfolio portfolio = getOwnedOrThrow(portfolioId, username);
         portfolioRepository.delete(portfolio);
+    }
+
+    @Override
+    public Portfolio assignManager(Long portfolioId, String ownerUsername, Long managerUserId) {
+        User owner = userService.getByUsernameOrThrow(ownerUsername);
+        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+                .orElseThrow(() -> new ResourceNotFoundException("Portfolio " + portfolioId + " not found"));
+
+        if (!portfolio.getUser().getId().equals(owner.getId())) {
+            throw new UnauthorizedAccessException(
+                    "Only the owner of portfolio " + portfolioId + " may assign a manager");
+        }
+
+        if (managerUserId == null) {
+            portfolio.setManager(null);
+        } else {
+            User manager = userService.getByIdOrThrow(managerUserId);
+            if (manager.getRole() != UserRole.MANAGER) {
+                throw new InvalidRoleAssignmentException(
+                        "User " + managerUserId + " does not have the MANAGER role");
+            }
+            portfolio.setManager(manager);
+        }
+        return portfolioRepository.save(portfolio);
     }
 }

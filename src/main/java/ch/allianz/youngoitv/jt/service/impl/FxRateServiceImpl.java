@@ -4,6 +4,7 @@ import ch.allianz.youngoitv.jt.dto.FxRateCreateRequestDto;
 import ch.allianz.youngoitv.jt.entity.FxRate;
 import ch.allianz.youngoitv.jt.exception.FxRateNotAvailableException;
 import ch.allianz.youngoitv.jt.repository.FxRateRepository;
+import ch.allianz.youngoitv.jt.security.AdminCheckService;
 import ch.allianz.youngoitv.jt.service.FxRateService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,13 +14,16 @@ import org.springframework.stereotype.Service;
 public class FxRateServiceImpl implements FxRateService {
 
     private final FxRateRepository fxRateRepository;
+    private final AdminCheckService adminCheckService;
 
-    public FxRateServiceImpl(FxRateRepository fxRateRepository) {
+    public FxRateServiceImpl(FxRateRepository fxRateRepository, AdminCheckService adminCheckService) {
         this.fxRateRepository = fxRateRepository;
+        this.adminCheckService = adminCheckService;
     }
 
     @Override
-    public FxRate create(FxRateCreateRequestDto request) {
+    public FxRate create(FxRateCreateRequestDto request, String requesterUsername) {
+        adminCheckService.requireAdmin(requesterUsername);
         FxRate fxRate = new FxRate();
         fxRate.setBaseCurrency(request.baseCurrency());
         fxRate.setQuoteCurrency(request.quoteCurrency());

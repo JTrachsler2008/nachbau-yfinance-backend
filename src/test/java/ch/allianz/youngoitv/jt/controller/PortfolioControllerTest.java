@@ -4,11 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.allianz.youngoitv.jt.entity.UserRole;
 import ch.allianz.youngoitv.jt.repository.PortfolioRepository;
+import ch.allianz.youngoitv.jt.repository.UserRepository;
 import ch.allianz.youngoitv.jt.security.JwtService;
 import ch.allianz.youngoitv.jt.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,11 +45,21 @@ class PortfolioControllerTest {
     @MockitoSpyBean
     private PortfolioRepository portfolioRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private String tokenFor(String username) {
         userService.register(username, username + "@example.com", "password123");
         return jwtService.generateToken(username);
+    }
+
+    private long registerAndGetId(String username, UserRole role) {
+        var user = userService.register(username, username + "@example.com", "password123");
+        user.setRole(role);
+        userRepository.save(user);
+        return user.getId();
     }
 
     @Test
@@ -90,6 +103,81 @@ class PortfolioControllerTest {
 
         mockMvc.perform(get("/portfolios/" + portfolioId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + strangerToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void assigningAManagerGrantsThemAccessToThePortfolio() throws Exception {
+        String ownerToken = tokenFor("penny");
+        long managerId = registerAndGetId("quentin", UserRole.MANAGER);
+        String managerToken = jwtService.generateToken("quentin");
+
+        MvcResult created = mockMvc.perform(post("/portfolios")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Mandant","baseCurrency":"CHF"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long portfolioId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(patch("/portfolios/" + portfolioId + "/manager")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"managerUserId\":" + managerId + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.managerUserId").value(managerId))
+                .andExpect(jsonPath("$.managerUsername").value("quentin"));
+
+        mockMvc.perform(get("/portfolios/" + portfolioId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + managerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Mandant"));
+    }
+
+    @Test
+    void assigningAUserWithoutManagerRoleReturns400() throws Exception {
+        String ownerToken = tokenFor("rachel");
+        long nonManagerId = registerAndGetId("simon", UserRole.PRIVATANLEGER);
+
+        MvcResult created = mockMvc.perform(post("/portfolios")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Mandant","baseCurrency":"CHF"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long portfolioId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(patch("/portfolios/" + portfolioId + "/manager")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"managerUserId\":" + nonManagerId + "}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void assigningManagerAsNonOwnerReturns403() throws Exception {
+        String ownerToken = tokenFor("tara");
+        String strangerToken = tokenFor("ulf");
+        long managerId = registerAndGetId("vera", UserRole.MANAGER);
+
+        MvcResult created = mockMvc.perform(post("/portfolios")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Mandant","baseCurrency":"CHF"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long portfolioId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(patch("/portfolios/" + portfolioId + "/manager")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + strangerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"managerUserId\":" + managerId + "}"))
                 .andExpect(status().isForbidden());
     }
 

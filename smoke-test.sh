@@ -30,12 +30,12 @@ check() {
 }
 
 if [ "$1" = "--seed" ]; then
-  echo "Lege Test-User '$USER' an (Passwort '$PASS', BCrypt via pgcrypto)..."
+  echo "Lege Test-User '$USER' an (Passwort '$PASS', BCrypt via pgcrypto), Rolle ADMIN fuer Stammdaten-Tests..."
   docker exec portfolio-postgres psql -U portfolio -d portfolio -q \
     -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;" \
-    -c "INSERT INTO users (username, email, password_hash)
-        VALUES ('$USER', '$USER.trachsler@allianz.com', crypt('$PASS', gen_salt('bf', 10)))
-        ON CONFLICT (username) DO NOTHING;"
+    -c "INSERT INTO users (username, email, password_hash, role)
+        VALUES ('$USER', '$USER.trachsler@allianz.com', crypt('$PASS', gen_salt('bf', 10)), 'ADMIN')
+        ON CONFLICT (username) DO UPDATE SET role = 'ADMIN';"
   echo ""
 fi
 

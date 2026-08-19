@@ -5,6 +5,7 @@ import ch.allianz.youngoitv.jt.dto.SecurityResponseDto;
 import ch.allianz.youngoitv.jt.mapper.SecurityMapper;
 import ch.allianz.youngoitv.jt.service.SecurityService;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,8 +28,9 @@ public class SecurityController {
     }
 
     @PostMapping
-    public ResponseEntity<SecurityResponseDto> create(@Valid @RequestBody SecurityCreateRequestDto request) {
-        var security = securityService.create(request);
+    public ResponseEntity<SecurityResponseDto> create(
+            Principal principal, @Valid @RequestBody SecurityCreateRequestDto request) {
+        var security = securityService.create(request, principal.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(securityMapper.toResponseDto(security));
     }
 

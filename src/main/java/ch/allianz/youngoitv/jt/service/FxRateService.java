@@ -6,7 +6,7 @@ import java.time.LocalDate;
 
 public interface FxRateService {
 
-    FxRate create(FxRateCreateRequestDto request);
+    FxRate create(FxRateCreateRequestDto request, String requesterUsername);
 
     FxRate getLatestOnOrBeforeOrThrow(String baseCurrency, String quoteCurrency, LocalDate onOrBefore);
 }

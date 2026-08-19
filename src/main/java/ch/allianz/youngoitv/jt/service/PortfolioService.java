@@ -16,4 +16,6 @@ public interface PortfolioService {
     Portfolio update(Long portfolioId, String username, PortfolioUpdateRequestDto request);
 
     void delete(Long portfolioId, String username);
+
+    Portfolio assignManager(Long portfolioId, String ownerUsername, Long managerUserId);
 }

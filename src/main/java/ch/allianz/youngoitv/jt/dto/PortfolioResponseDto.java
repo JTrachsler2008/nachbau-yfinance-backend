@@ -7,6 +7,8 @@ public record PortfolioResponseDto(
         String name,
         String baseCurrency,
         String description,
+        Long managerUserId,
+        String managerUsername,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 }

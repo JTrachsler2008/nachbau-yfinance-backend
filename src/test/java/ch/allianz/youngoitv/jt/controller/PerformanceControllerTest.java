@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.allianz.youngoitv.jt.entity.UserRole;
+import ch.allianz.youngoitv.jt.repository.UserRepository;
 import ch.allianz.youngoitv.jt.security.JwtService;
 import ch.allianz.youngoitv.jt.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,10 +36,16 @@ class PerformanceControllerTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private String tokenFor(String username) {
-        userService.register(username, username + "@example.com", "password123");
+        var user = userService.register(username, username + "@example.com", "password123");
+        // ADMIN, damit derselbe Test-User in createSecurity()/fx-rates auch Stammdaten anlegen darf.
+        user.setRole(UserRole.ADMIN);
+        userRepository.save(user);
         return jwtService.generateToken(username);
     }
 

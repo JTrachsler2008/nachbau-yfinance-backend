@@ -5,6 +5,7 @@ import ch.allianz.youngoitv.jt.dto.FxRateResponseDto;
 import ch.allianz.youngoitv.jt.mapper.FxRateMapper;
 import ch.allianz.youngoitv.jt.service.FxRateService;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -29,8 +30,9 @@ public class FxRateController {
     }
 
     @PostMapping
-    public ResponseEntity<FxRateResponseDto> create(@Valid @RequestBody FxRateCreateRequestDto request) {
-        var fxRate = fxRateService.create(request);
+    public ResponseEntity<FxRateResponseDto> create(
+            Principal principal, @Valid @RequestBody FxRateCreateRequestDto request) {
+        var fxRate = fxRateService.create(request, principal.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(fxRateMapper.toResponseDto(fxRate));
     }
 

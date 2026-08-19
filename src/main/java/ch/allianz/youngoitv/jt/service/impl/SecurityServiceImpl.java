@@ -5,6 +5,7 @@ import ch.allianz.youngoitv.jt.entity.Security;
 import ch.allianz.youngoitv.jt.exception.InvalidSecurityDataException;
 import ch.allianz.youngoitv.jt.exception.ResourceNotFoundException;
 import ch.allianz.youngoitv.jt.repository.SecurityRepository;
+import ch.allianz.youngoitv.jt.security.AdminCheckService;
 import ch.allianz.youngoitv.jt.service.SecurityService;
 import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
@@ -15,13 +16,16 @@ public class SecurityServiceImpl implements SecurityService {
     private static final String BOND = "BOND";
 
     private final SecurityRepository securityRepository;
+    private final AdminCheckService adminCheckService;
 
-    public SecurityServiceImpl(SecurityRepository securityRepository) {
+    public SecurityServiceImpl(SecurityRepository securityRepository, AdminCheckService adminCheckService) {
         this.securityRepository = securityRepository;
+        this.adminCheckService = adminCheckService;
     }
 
     @Override
-    public Security create(SecurityCreateRequestDto request) {
+    public Security create(SecurityCreateRequestDto request, String requesterUsername) {
+        adminCheckService.requireAdmin(requesterUsername);
         boolean isBond = BOND.equalsIgnoreCase(request.assetType());
         if (!isBond && (request.couponRate() != null || request.maturityDate() != null)) {
             throw new InvalidSecurityDataException(

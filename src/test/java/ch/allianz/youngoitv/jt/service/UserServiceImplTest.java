@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.allianz.youngoitv.jt.entity.User;
+import ch.allianz.youngoitv.jt.entity.UserRole;
+import ch.allianz.youngoitv.jt.exception.UnauthorizedAccessException;
 import ch.allianz.youngoitv.jt.exception.UserAlreadyExistsException;
 import ch.allianz.youngoitv.jt.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -59,5 +61,33 @@ class UserServiceImplTest {
 
         assertThatThrownBy(() -> userService.register("other-hank", "hank@example.com", "password123"))
                 .isInstanceOf(UserAlreadyExistsException.class);
+    }
+
+    @Test
+    void selfRegistrationAlwaysGetsThePrivatanlegerRole() {
+        User saved = userService.register("ivo", "ivo@example.com", "password123");
+
+        assertThat(saved.getRole()).isEqualTo(UserRole.PRIVATANLEGER);
+    }
+
+    @Test
+    void adminCanChangeAnotherUsersRole() {
+        User admin = userService.register("admin1", "admin1@example.com", "password123");
+        admin.setRole(UserRole.ADMIN);
+        userRepository.save(admin);
+        User target = userService.register("jonas", "jonas@example.com", "password123");
+
+        User updated = userService.updateRole(target.getId(), UserRole.MANAGER, "admin1");
+
+        assertThat(updated.getRole()).isEqualTo(UserRole.MANAGER);
+    }
+
+    @Test
+    void nonAdminCannotChangeAnyonesRole() {
+        userService.register("karl", "karl@example.com", "password123");
+        User target = userService.register("lea", "lea@example.com", "password123");
+
+        assertThatThrownBy(() -> userService.updateRole(target.getId(), UserRole.ADMIN, "karl"))
+                .isInstanceOf(UnauthorizedAccessException.class);
     }
 }
