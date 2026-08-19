@@ -10,4 +10,6 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     List<Position> findByAccountId(Long accountId);
 
     Optional<Position> findByAccountIdAndSecurityId(Long accountId, Long securityId);
+
+    List<Position> findByAccountPortfolioId(Long portfolioId);
 }
