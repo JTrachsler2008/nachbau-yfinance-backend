@@ -39,9 +39,19 @@ public class GlobalExceptionHandler {
         return badRequest(ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidSecurityDataException.class)
+    public ResponseEntity<ErrorResponseDto> handleInvalidSecurityData(InvalidSecurityDataException ex) {
+        return badRequest(ex.getMessage());
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponseDto> handleResourceNotFound(ResourceNotFoundException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponseDto> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(UnauthorizedAccessException.class)

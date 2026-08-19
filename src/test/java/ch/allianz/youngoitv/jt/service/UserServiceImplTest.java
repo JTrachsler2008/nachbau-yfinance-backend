@@ -1,8 +1,10 @@
 package ch.allianz.youngoitv.jt.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.allianz.youngoitv.jt.entity.User;
+import ch.allianz.youngoitv.jt.exception.UserAlreadyExistsException;
 import ch.allianz.youngoitv.jt.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,5 +43,21 @@ class UserServiceImplTest {
         User reloaded = userRepository.findById(saved.getId()).orElseThrow();
 
         assertThat(passwordEncoder.matches("wrong-password", reloaded.getPasswordHash())).isFalse();
+    }
+
+    @Test
+    void duplicateUsernameIsRejected() {
+        userService.register("gina", "gina@example.com", "password123");
+
+        assertThatThrownBy(() -> userService.register("gina", "other@example.com", "password123"))
+                .isInstanceOf(UserAlreadyExistsException.class);
+    }
+
+    @Test
+    void duplicateEmailIsRejected() {
+        userService.register("hank", "hank@example.com", "password123");
+
+        assertThatThrownBy(() -> userService.register("other-hank", "hank@example.com", "password123"))
+                .isInstanceOf(UserAlreadyExistsException.class);
     }
 }

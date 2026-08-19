@@ -1,7 +1,7 @@
 package ch.allianz.youngoitv.jt.security;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
@@ -54,7 +54,7 @@ class JwtAuthenticationFilterTest {
         mockMvc.perform(get("/users/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(content().string("erin"));
+                .andExpect(jsonPath("$.username").value("erin"));
     }
 
     @Test

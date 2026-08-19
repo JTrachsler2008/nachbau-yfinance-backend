@@ -1,5 +1,6 @@
 package ch.allianz.youngoitv.jt.security;
 
+import ch.allianz.youngoitv.jt.entity.Account;
 import ch.allianz.youngoitv.jt.entity.Portfolio;
 import ch.allianz.youngoitv.jt.entity.User;
 import org.springframework.stereotype.Service;
@@ -16,5 +17,9 @@ public class OwnerCheckService {
 
     public boolean isAuthorizedForPortfolio(Portfolio portfolio, User principal) {
         return portfolio.getUser().getId().equals(principal.getId());
+    }
+
+    public boolean isAuthorizedForAccount(Account account, User principal) {
+        return isAuthorizedForPortfolio(account.getPortfolio(), principal);
     }
 }
