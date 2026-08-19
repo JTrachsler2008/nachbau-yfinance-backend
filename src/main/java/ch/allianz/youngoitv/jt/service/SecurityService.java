@@ -8,4 +8,6 @@ public interface SecurityService {
     Security create(SecurityCreateRequestDto request);
 
     Security getBySymbolOrThrow(String symbol);
+
+    Security getByIdOrThrow(Long id);
 }

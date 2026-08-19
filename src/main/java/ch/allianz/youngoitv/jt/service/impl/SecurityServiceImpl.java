@@ -50,4 +50,10 @@ public class SecurityServiceImpl implements SecurityService {
         return securityRepository.findBySymbol(symbol)
                 .orElseThrow(() -> new ResourceNotFoundException("Security '" + symbol + "' not found"));
     }
+
+    @Override
+    public Security getByIdOrThrow(Long id) {
+        return securityRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Security " + id + " not found"));
+    }
 }
