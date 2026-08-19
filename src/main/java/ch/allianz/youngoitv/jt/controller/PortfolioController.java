@@ -52,7 +52,7 @@ public class PortfolioController {
 
     @PatchMapping("/{id}")
     public PortfolioResponseDto update(
-            Principal principal, @PathVariable Long id, @RequestBody PortfolioUpdateRequestDto request) {
+            Principal principal, @PathVariable Long id, @Valid @RequestBody PortfolioUpdateRequestDto request) {
         return portfolioMapper.toResponseDto(portfolioService.update(id, principal.getName(), request));
     }
 

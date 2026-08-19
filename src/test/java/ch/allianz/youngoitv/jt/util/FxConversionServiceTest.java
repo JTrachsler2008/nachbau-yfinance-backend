@@ -7,10 +7,9 @@ import static org.mockito.Mockito.when;
 
 import ch.allianz.youngoitv.jt.entity.FxRate;
 import ch.allianz.youngoitv.jt.exception.FxRateNotAvailableException;
-import ch.allianz.youngoitv.jt.repository.FxRateRepository;
+import ch.allianz.youngoitv.jt.service.FxRateService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -20,25 +19,25 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class FxConversionServiceTest {
 
     @Mock
-    private FxRateRepository fxRateRepository;
+    private FxRateService fxRateService;
 
     @Test
-    void sameCurrencyReturnsOriginalAmountWithoutDbLookup() {
-        FxConversionService service = new FxConversionService(fxRateRepository);
+    void sameCurrencyReturnsOriginalAmountWithoutRateLookup() {
+        FxConversionService service = new FxConversionService(fxRateService);
 
         BigDecimal result = service.convert(new BigDecimal("100.00"), "CHF", "CHF", LocalDate.of(2026, 1, 1));
 
         assertThat(result).isEqualByComparingTo("100.00");
-        verifyNoInteractions(fxRateRepository);
+        verifyNoInteractions(fxRateService);
     }
 
     @Test
     void convertsUsingLatestRateOnOrBeforeDate() {
-        FxConversionService service = new FxConversionService(fxRateRepository);
+        FxConversionService service = new FxConversionService(fxRateService);
         FxRate rate = new FxRate();
         rate.setRate(new BigDecimal("0.9"));
-        when(fxRateRepository.findLatestOnOrBefore("USD", "CHF", LocalDate.of(2026, 1, 5)))
-                .thenReturn(Optional.of(rate));
+        when(fxRateService.getLatestOnOrBeforeOrThrow("USD", "CHF", LocalDate.of(2026, 1, 5)))
+                .thenReturn(rate);
 
         BigDecimal result = service.convert(new BigDecimal("100"), "USD", "CHF", LocalDate.of(2026, 1, 5));
 
@@ -47,9 +46,9 @@ class FxConversionServiceTest {
 
     @Test
     void missingRateThrowsInsteadOfSilentlyAssumingOneToOne() {
-        FxConversionService service = new FxConversionService(fxRateRepository);
-        when(fxRateRepository.findLatestOnOrBefore("EUR", "JPY", LocalDate.of(2026, 1, 1)))
-                .thenReturn(Optional.empty());
+        FxConversionService service = new FxConversionService(fxRateService);
+        when(fxRateService.getLatestOnOrBeforeOrThrow("EUR", "JPY", LocalDate.of(2026, 1, 1)))
+                .thenThrow(new FxRateNotAvailableException("No FX rate available for EUR/JPY on or before 2026-01-01"));
 
         assertThatThrownBy(() -> service.convert(BigDecimal.TEN, "EUR", "JPY", LocalDate.of(2026, 1, 1)))
                 .isInstanceOf(FxRateNotAvailableException.class);

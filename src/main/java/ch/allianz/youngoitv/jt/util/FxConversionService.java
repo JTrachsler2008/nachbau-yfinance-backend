@@ -1,34 +1,35 @@
 package ch.allianz.youngoitv.jt.util;
 
-import ch.allianz.youngoitv.jt.exception.FxRateNotAvailableException;
-import ch.allianz.youngoitv.jt.repository.FxRateRepository;
+import ch.allianz.youngoitv.jt.service.FxRateService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.springframework.stereotype.Service;
 
 /**
  * Zentrale FX-Umrechnung, ersetzt die im Original mind. 5-fach duplizierte Implementierung
- * (ARC-4, KONV-7). Bei fehlendem Kurs wird eine Exception geworfen statt stillschweigend 1.0
- * anzunehmen (Verbesserung gegenueber dem Original).
+ * (ARC-4, KONV-7). Der Kurs-Lookup selbst (inkl. "kein Kurs vorhanden"-Fehler) lebt in
+ * {@link FxRateService}, damit es nur eine Implementierung dieser Logik gibt.
  */
 @Service
 public class FxConversionService {
 
-    private final FxRateRepository fxRateRepository;
+    private final FxRateService fxRateService;
 
-    public FxConversionService(FxRateRepository fxRateRepository) {
-        this.fxRateRepository = fxRateRepository;
+    public FxConversionService(FxRateService fxRateService) {
+        this.fxRateService = fxRateService;
     }
 
     public BigDecimal convert(BigDecimal amount, String fromCurrency, String toCurrency, LocalDate date) {
         if (fromCurrency.equals(toCurrency)) {
             return amount;
         }
+        return amount.multiply(getRate(fromCurrency, toCurrency, date));
+    }
 
-        var fxRate = fxRateRepository.findLatestOnOrBefore(fromCurrency, toCurrency, date)
-                .orElseThrow(() -> new FxRateNotAvailableException(
-                        "No FX rate available for " + fromCurrency + "/" + toCurrency + " on or before " + date));
-
-        return amount.multiply(fxRate.getRate());
+    public BigDecimal getRate(String fromCurrency, String toCurrency, LocalDate date) {
+        if (fromCurrency.equals(toCurrency)) {
+            return BigDecimal.ONE;
+        }
+        return fxRateService.getLatestOnOrBeforeOrThrow(fromCurrency, toCurrency, date).getRate();
     }
 }

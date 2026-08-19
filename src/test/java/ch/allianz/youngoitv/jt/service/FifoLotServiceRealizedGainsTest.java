@@ -57,6 +57,26 @@ class FifoLotServiceRealizedGainsTest {
         assertThat(gains.get(0).amount()).isEqualByComparingTo("50");
     }
 
+    /**
+     * Handrechnung: Kauf 10@100, Verkauf 10@150 mit Gebuehr 5 und Steuer 3.
+     * Erloes = 10*150 - 5 - 3 = 1492. Kostenbasis = 1000. Gewinn = 492 (nicht 500).
+     */
+    @Test
+    void feeAndTaxOnSellReduceTheRealizedGain() {
+        Transaction sell = transaction(TransactionType.SELL, new BigDecimal("10"), new BigDecimal("150"),
+                LocalDate.of(2026, 2, 1));
+        sell.setFee(new BigDecimal("5"));
+        sell.setTax(new BigDecimal("3"));
+        List<Transaction> history = List.of(
+                transaction(TransactionType.BUY, new BigDecimal("10"), new BigDecimal("100"), LocalDate.of(2026, 1, 1)),
+                sell);
+
+        List<RealizedGain> gains = fifoLotService.calculateRealizedGains(history);
+
+        assertThat(gains).hasSize(1);
+        assertThat(gains.get(0).amount()).isEqualByComparingTo("492");
+    }
+
     @Test
     void dividendsAndSplitsDoNotProduceRealizedGainEntries() {
         List<Transaction> history = List.of(

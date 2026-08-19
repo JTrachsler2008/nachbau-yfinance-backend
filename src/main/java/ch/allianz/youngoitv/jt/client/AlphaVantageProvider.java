@@ -40,7 +40,9 @@ public class AlphaVantageProvider implements MarketDataProvider {
                     .body(Quote.class);
             return Optional.ofNullable(quote);
         } catch (RestClientException ex) {
-            log.warn("AlphaVantage getQuote failed for {}: {}", symbol, ex.getMessage());
+            // ex.getMessage() kann die volle Request-URI inkl. apikey enthalten (z.B. bei
+            // ResourceAccessException) - deshalb nur der Exception-Typ, nie die Message selbst.
+            log.warn("AlphaVantage getQuote failed for {}: {}", symbol, ex.getClass().getSimpleName());
             return Optional.empty();
         }
     }
@@ -55,7 +57,7 @@ public class AlphaVantageProvider implements MarketDataProvider {
                     });
             return Optional.ofNullable(prices);
         } catch (RestClientException ex) {
-            log.warn("AlphaVantage getHistorical failed for {}: {}", symbol, ex.getMessage());
+            log.warn("AlphaVantage getHistorical failed for {}: {}", symbol, ex.getClass().getSimpleName());
             return Optional.empty();
         }
     }

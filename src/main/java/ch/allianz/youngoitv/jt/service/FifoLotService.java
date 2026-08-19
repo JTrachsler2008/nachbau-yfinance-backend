@@ -65,9 +65,23 @@ public class FifoLotService {
     }
 
     private RealizedGain sellAndComputeRealizedGain(Deque<Lot> lots, Transaction sellTx) {
-        BigDecimal remaining = sellTx.getQuantity();
-        BigDecimal totalCostBasis = BigDecimal.ZERO;
+        BigDecimal totalCostBasis = reduceFifo(lots, sellTx.getQuantity());
 
+        BigDecimal fee = sellTx.getFee() == null ? BigDecimal.ZERO : sellTx.getFee();
+        BigDecimal tax = sellTx.getTax() == null ? BigDecimal.ZERO : sellTx.getTax();
+        BigDecimal proceeds = sellTx.getPrice().multiply(sellTx.getQuantity()).subtract(fee).subtract(tax);
+        BigDecimal gain = proceeds.subtract(totalCostBasis);
+        return new RealizedGain(gain, sellTx.getTransactionCurrency(), sellTx.getTransactionDate());
+    }
+
+    /**
+     * Baut die aeltesten Tranchen bis zur verkauften Menge ab und liefert deren FIFO-Kostenbasis
+     * (fuer {@link #calculateOpenLots} irrelevant und daher ignoriert, fuer
+     * {@link #calculateRealizedGains} die Grundlage des realisierten Gewinns).
+     */
+    private BigDecimal reduceFifo(Deque<Lot> lots, BigDecimal quantityToSell) {
+        BigDecimal remaining = quantityToSell;
+        BigDecimal totalCostBasis = BigDecimal.ZERO;
         while (remaining.compareTo(BigDecimal.ZERO) > 0 && !lots.isEmpty()) {
             Lot oldest = lots.pollFirst();
             if (oldest.quantity().compareTo(remaining) <= 0) {
@@ -80,25 +94,7 @@ public class FifoLotService {
                 remaining = BigDecimal.ZERO;
             }
         }
-
-        BigDecimal proceeds = sellTx.getPrice().multiply(sellTx.getQuantity());
-        BigDecimal gain = proceeds.subtract(totalCostBasis);
-        return new RealizedGain(gain, sellTx.getTransactionCurrency(), sellTx.getTransactionDate());
-    }
-
-    private void reduceFifo(Deque<Lot> lots, BigDecimal quantityToSell) {
-        BigDecimal remaining = quantityToSell;
-        while (remaining.compareTo(BigDecimal.ZERO) > 0 && !lots.isEmpty()) {
-            Lot oldest = lots.pollFirst();
-            int comparison = oldest.quantity().compareTo(remaining);
-            if (comparison <= 0) {
-                remaining = remaining.subtract(oldest.quantity());
-            } else {
-                lots.addFirst(new Lot(
-                        oldest.quantity().subtract(remaining), oldest.purchasePrice(), oldest.purchaseDate()));
-                remaining = BigDecimal.ZERO;
-            }
-        }
+        return totalCostBasis;
     }
 
     private void scaleLots(Deque<Lot> lots, BigDecimal splitRatio) {

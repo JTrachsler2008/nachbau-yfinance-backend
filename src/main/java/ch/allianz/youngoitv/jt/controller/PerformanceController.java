@@ -1,10 +1,10 @@
 package ch.allianz.youngoitv.jt.controller;
 
 import ch.allianz.youngoitv.jt.dto.CurrencyAmountResponseDto;
-import ch.allianz.youngoitv.jt.repository.TransactionRepository;
 import ch.allianz.youngoitv.jt.service.DividendsService;
 import ch.allianz.youngoitv.jt.service.PortfolioService;
 import ch.allianz.youngoitv.jt.service.RealizedGainsService;
+import ch.allianz.youngoitv.jt.service.TransactionService;
 import java.security.Principal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,17 +28,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class PerformanceController {
 
     private final PortfolioService portfolioService;
-    private final TransactionRepository transactionRepository;
+    private final TransactionService transactionService;
     private final RealizedGainsService realizedGainsService;
     private final DividendsService dividendsService;
 
     public PerformanceController(
             PortfolioService portfolioService,
-            TransactionRepository transactionRepository,
+            TransactionService transactionService,
             RealizedGainsService realizedGainsService,
             DividendsService dividendsService) {
         this.portfolioService = portfolioService;
-        this.transactionRepository = transactionRepository;
+        this.transactionService = transactionService;
         this.realizedGainsService = realizedGainsService;
         this.dividendsService = dividendsService;
     }
@@ -47,7 +47,7 @@ public class PerformanceController {
     public CurrencyAmountResponseDto realizedGains(
             Principal principal, @PathVariable Long portfolioId, @RequestParam String currency) {
         portfolioService.getOwnedOrThrow(portfolioId, principal.getName());
-        var transactions = transactionRepository.findByAccountPortfolioIdOrderByTransactionDateAsc(portfolioId);
+        var transactions = transactionService.getTransactionsForPortfolio(portfolioId);
         return new CurrencyAmountResponseDto(
                 realizedGainsService.calculateTotalInCurrency(transactions, currency), currency);
     }
@@ -56,7 +56,7 @@ public class PerformanceController {
     public CurrencyAmountResponseDto dividends(
             Principal principal, @PathVariable Long portfolioId, @RequestParam String currency) {
         portfolioService.getOwnedOrThrow(portfolioId, principal.getName());
-        var transactions = transactionRepository.findByAccountPortfolioIdOrderByTransactionDateAsc(portfolioId);
+        var transactions = transactionService.getTransactionsForPortfolio(portfolioId);
         return new CurrencyAmountResponseDto(
                 dividendsService.calculateTotalInCurrency(transactions, currency), currency);
     }

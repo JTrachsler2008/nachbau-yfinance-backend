@@ -95,6 +95,41 @@ class TransactionControllerTest {
                                 """.formatted(securityId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.fxRateToPortfolio").value(1));
+
+        // 10000.00 Startkapital - (10 * 100 Kaufpreis + 5 Gebuehr) = 8995.00 verbleibendes Cash.
+        mockMvc.perform(post("/accounts/" + accountId + "/withdraw")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount":8995.00}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cashAmount").value(0.0));
+
+        MvcResult lotsResult = mockMvc.perform(get("/accounts/" + accountId + "/positions/" + securityId + "/lots")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        var lots = objectMapper.readTree(lotsResult.getResponse().getContentAsString());
+        assertThat(lots).hasSize(1);
+        assertThat(lots.get(0).get("quantity").asDouble()).isEqualTo(10.0);
+    }
+
+    @Test
+    void buyWithNegativeQuantityReturns400InsteadOfCreatingFreeCash() throws Exception {
+        String token = tokenFor("ulla");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createSecurity(token, "VNEG", "CHF");
+        deposit(token, accountId, "100.00");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"securityId":%d,"transactionType":"BUY","quantity":-1000,"price":100,
+                                 "transactionCurrency":"CHF","transactionDate":"2026-01-05"}
+                                """.formatted(securityId)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -190,6 +225,22 @@ class TransactionControllerTest {
                                  "transactionCurrency":"CHF","transactionDate":"2026-01-11"}
                                 """.formatted(securityId)))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void splitWithoutSplitRatioReturns400() throws Exception {
+        String token = tokenFor("yorick");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createSecurity(token, "VNSR", "CHF");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"securityId":%d,"transactionType":"SPLIT","quantity":0,
+                                 "transactionCurrency":"CHF","transactionDate":"2026-01-10"}
+                                """.formatted(securityId)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
