@@ -39,6 +39,53 @@ public class FifoLotService {
         return new ArrayList<>(lots);
     }
 
+    /**
+     * Wie {@link #calculateOpenLots}, verfolgt aber zusaetzlich den realisierten Gewinn/Verlust
+     * (Verkaufserlos minus FIFO-Kostenbasis der abgebauten Tranchen) je SELL-Transaktion.
+     */
+    public List<RealizedGain> calculateRealizedGains(List<Transaction> transactionsOrderedByDate) {
+        Deque<Lot> lots = new ArrayDeque<>();
+        List<RealizedGain> gains = new ArrayList<>();
+
+        for (Transaction tx : transactionsOrderedByDate) {
+            switch (tx.getTransactionType()) {
+                case BUY -> lots.addLast(new Lot(tx.getQuantity(), tx.getPrice(), tx.getTransactionDate()));
+                case SELL -> gains.add(sellAndComputeRealizedGain(lots, tx));
+                case SPLIT -> scaleLots(lots, tx.getSplitRatio());
+                case ACQUISITION, MERGER -> {
+                    lots.clear();
+                    lots.addLast(new Lot(tx.getQuantity(), tx.getPrice(), tx.getTransactionDate()));
+                }
+                case DIVIDEND -> {
+                    // Keine Auswirkung auf Bestands-Tranchen oder realisierte Gewinne.
+                }
+            }
+        }
+        return gains;
+    }
+
+    private RealizedGain sellAndComputeRealizedGain(Deque<Lot> lots, Transaction sellTx) {
+        BigDecimal remaining = sellTx.getQuantity();
+        BigDecimal totalCostBasis = BigDecimal.ZERO;
+
+        while (remaining.compareTo(BigDecimal.ZERO) > 0 && !lots.isEmpty()) {
+            Lot oldest = lots.pollFirst();
+            if (oldest.quantity().compareTo(remaining) <= 0) {
+                totalCostBasis = totalCostBasis.add(oldest.quantity().multiply(oldest.purchasePrice()));
+                remaining = remaining.subtract(oldest.quantity());
+            } else {
+                totalCostBasis = totalCostBasis.add(remaining.multiply(oldest.purchasePrice()));
+                lots.addFirst(new Lot(
+                        oldest.quantity().subtract(remaining), oldest.purchasePrice(), oldest.purchaseDate()));
+                remaining = BigDecimal.ZERO;
+            }
+        }
+
+        BigDecimal proceeds = sellTx.getPrice().multiply(sellTx.getQuantity());
+        BigDecimal gain = proceeds.subtract(totalCostBasis);
+        return new RealizedGain(gain, sellTx.getTransactionCurrency(), sellTx.getTransactionDate());
+    }
+
     private void reduceFifo(Deque<Lot> lots, BigDecimal quantityToSell) {
         BigDecimal remaining = quantityToSell;
         while (remaining.compareTo(BigDecimal.ZERO) > 0 && !lots.isEmpty()) {
