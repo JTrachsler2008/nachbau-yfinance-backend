@@ -92,6 +92,45 @@ class RiskServiceTest {
         assertThat(result).isEqualByComparingTo(new BigDecimal("-0.05"));
     }
 
+    /**
+     * Handrechnung: +10% und danach -10% ergeben 1.1 * 0.9 = 0.99, also einen Verlust von 1% in zwei
+     * Handelstagen. Hochgerechnet auf ein Jahr: 0.99^(252/2) = 0.99^126 = 0.28186, somit -71.81%.
+     * Eine arithmetische Annualisierung wuerde hier 0% liefern, weil sich +0.10 und -0.10 aufheben.
+     */
+    @Test
+    void annualizedReturnChainsTheReturnsInsteadOfAddingThem() {
+        List<BigDecimal> returns = decimalsOf(0.10, -0.10);
+
+        BigDecimal result = riskService.annualizedReturn(returns);
+
+        assertThat(result.doubleValue()).isCloseTo(-0.7181, Offset.offset(1e-4));
+    }
+
+    /**
+     * Handrechnung: 252 Tage mit je +0.1% sind genau ein Jahr, die Hochrechnung ist also der Zeitraum
+     * selbst: 1.001^252 = 1.28644, somit +28.64%.
+     */
+    @Test
+    void annualizedReturnOverExactlyOneYearIsTheChainedReturnItself() {
+        List<BigDecimal> returns = new java.util.ArrayList<>(java.util.Collections.nCopies(252, new BigDecimal("0.001")));
+
+        BigDecimal result = riskService.annualizedReturn(returns);
+
+        assertThat(result.doubleValue()).isCloseTo(0.28644, Offset.offset(1e-5));
+    }
+
+    @Test
+    void annualizedReturnOfATotalLossIsMinusOneHundredPercent() {
+        // Ein Tag mit -100% loescht das Kapital. Ohne Sonderfall stuende hier eine Wurzel aus 0 bzw.
+        // aus einer negativen Zahl, und ein weiterer Gewinntag danach koennte den Verlust rechnerisch
+        // wieder aufheben, was fachlich unmoeglich ist.
+        List<BigDecimal> returns = decimalsOf(-1.0, 0.05);
+
+        BigDecimal result = riskService.annualizedReturn(returns);
+
+        assertThat(result).isEqualByComparingTo(new BigDecimal("-1.0"));
+    }
+
     @Test
     void sharpeRatioIsZeroWhenReturnEqualsRiskFreeRateExactly() {
         // Konstante Tagesrendite, deren annualisierter Wert exakt dem risikofreien Zins entspricht,
