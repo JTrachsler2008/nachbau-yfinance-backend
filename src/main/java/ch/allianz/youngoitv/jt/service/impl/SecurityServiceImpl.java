@@ -8,6 +8,8 @@ import ch.allianz.youngoitv.jt.repository.SecurityRepository;
 import ch.allianz.youngoitv.jt.security.AdminCheckService;
 import ch.allianz.youngoitv.jt.service.SecurityService;
 import java.time.LocalDateTime;
+import java.util.List;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -59,5 +61,10 @@ public class SecurityServiceImpl implements SecurityService {
     public Security getByIdOrThrow(Long id) {
         return securityRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Security " + id + " not found"));
+    }
+
+    @Override
+    public List<Security> listAll() {
+        return securityRepository.findAll(Sort.by("symbol"));
     }
 }

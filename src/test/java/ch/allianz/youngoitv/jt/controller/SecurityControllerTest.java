@@ -42,6 +42,11 @@ class SecurityControllerTest {
         return jwtService.generateToken("tina");
     }
 
+    private String userToken(String username) {
+        userService.register(username, username + "@example.com", "password123");
+        return jwtService.generateToken(username);
+    }
+
     private String adminToken(String username) {
         var user = userService.register(username, username + "@example.com", "password123");
         user.setRole(UserRole.ADMIN);
@@ -96,6 +101,31 @@ class SecurityControllerTest {
         mockMvc.perform(get("/securities/DOESNOTEXIST")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void listIsReadableWithoutAdminRoleAndSortedBySymbol() throws Exception {
+        String adminToken = adminToken("tina");
+        mockMvc.perform(post("/securities")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"symbol":"ZZZZ","name":"Zeta AG","assetType":"STOCK","tradingCurrency":"CHF"}
+                        """));
+        mockMvc.perform(post("/securities")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"symbol":"AAAA","name":"Alpha AG","assetType":"STOCK","tradingCurrency":"CHF"}
+                        """));
+
+        // Lesen darf jeder angemeldete Benutzer, das Auswahlfeld im Transaktionsformular braucht die
+        // Liste. Anlegen bleibt der ADMIN-Rolle vorbehalten (siehe Test darunter).
+        mockMvc.perform(get("/securities")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken("nadia")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].symbol").value("AAAA"))
+                .andExpect(jsonPath("$[?(@.symbol == 'ZZZZ')].name").value("Zeta AG"));
     }
 
     @Test
