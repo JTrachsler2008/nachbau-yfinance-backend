@@ -182,6 +182,125 @@ class PortfolioControllerTest {
     }
 
     /**
+     * Mandatsliste des Managers (YOUNGOITV-459). Geprüft wird beides zusammen: dass das betreute
+     * Portfolio dort erscheint und dass es nicht zusätzlich in der eigenen Liste des Managers steht.
+     * Sonst könnte ein Manager ein Mandantenportfolio für sein eigenes halten.
+     */
+    @Test
+    void managedListContainsMandatesAndOwnListStaysSeparate() throws Exception {
+        String ownerToken = tokenFor("wanda");
+        long managerId = registerAndGetId("xavier", UserRole.MANAGER);
+        String managerToken = jwtService.generateToken("xavier");
+
+        MvcResult created = mockMvc.perform(post("/portfolios")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Mandat Wanda","baseCurrency":"CHF"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long portfolioId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/portfolios")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + managerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Eigenes des Managers","baseCurrency":"CHF"}
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(patch("/portfolios/" + portfolioId + "/manager")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"managerUserId\":" + managerId + "}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/portfolios/managed")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + managerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(portfolioId))
+                .andExpect(jsonPath("$[0].name").value("Mandat Wanda"))
+                // Der Name des Eigentümers unterscheidet ein Mandat vom eigenen Portfolio.
+                .andExpect(jsonPath("$[0].ownerUsername").value("wanda"))
+                .andExpect(jsonPath("$[0].managerUsername").value("xavier"));
+
+        mockMvc.perform(get("/portfolios")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + managerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].name").value("Eigenes des Managers"))
+                .andExpect(jsonPath("$[0].ownerUsername").value("xavier"));
+
+        mockMvc.perform(get("/portfolios")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(portfolioId));
+    }
+
+    /** Ohne Managerrolle gibt es keine Mandate, und das ist kein Fehler, sondern eine leere Liste. */
+    @Test
+    void managedListIsEmptyForAPrivateInvestor() throws Exception {
+        String token = tokenFor("yara");
+
+        mockMvc.perform(post("/portfolios")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Eigenes","baseCurrency":"CHF"}
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/portfolios/managed")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    /**
+     * Nach dem Entzug der Managerrolle bleibt die Zuordnung laut Plan stehen, der Zugriff aber nicht.
+     * Die Mandatsliste muss dann leer sein, sonst nennt sie Portfolios, die sich nicht mehr öffnen
+     * lassen.
+     */
+    @Test
+    void managedListDropsMandatesAfterTheManagerRoleIsRevoked() throws Exception {
+        String ownerToken = tokenFor("zoe");
+        long managerId = registerAndGetId("aaron", UserRole.MANAGER);
+        String managerToken = jwtService.generateToken("aaron");
+
+        MvcResult created = mockMvc.perform(post("/portfolios")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Mandat Zoe","baseCurrency":"CHF"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long portfolioId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(patch("/portfolios/" + portfolioId + "/manager")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"managerUserId\":" + managerId + "}"))
+                .andExpect(status().isOk());
+
+        var manager = userService.getByUsernameOrThrow("aaron");
+        manager.setRole(UserRole.PRIVATANLEGER);
+        userRepository.save(manager);
+
+        mockMvc.perform(get("/portfolios/managed")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + managerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        mockMvc.perform(get("/portfolios/" + portfolioId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + managerToken))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
      * B-3 (Review Tickets): verifiziert die "keine Exception-Details"-Garantie Ende-zu-Ende ueber
      * die reale Controller-/Service-/GlobalExceptionHandler-Kette, statt nur auf Unit-Ebene oder mit
      * einer Anfrage, die bereits am Security-Filter abgefangen wird.

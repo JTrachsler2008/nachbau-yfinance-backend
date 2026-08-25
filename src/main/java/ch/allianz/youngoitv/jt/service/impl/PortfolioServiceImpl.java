@@ -53,6 +53,20 @@ public class PortfolioServiceImpl implements PortfolioService {
     }
 
     @Override
+    public List<Portfolio> listManagedBy(String username) {
+        User principal = userService.getByUsernameOrThrow(username);
+        // Die Rollenprüfung steht hier bewusst zusätzlich zur Abfrage: verliert ein Benutzer die
+        // Rolle MANAGER, bleibt eine bestehende Zuordnung laut Plan stehen (offener Punkt
+        // "Entfernen/Wechsel eines Managers"), während OwnerCheckService ihm den Zugriff bereits
+        // verweigert. Ohne die Prüfung listete dieser Endpunkt Portfolios auf, die sich nicht mehr
+        // öffnen lassen.
+        if (principal.getRole() != UserRole.MANAGER) {
+            return List.of();
+        }
+        return portfolioRepository.findByManagerId(principal.getId());
+    }
+
+    @Override
     public Portfolio getOwnedOrThrow(Long portfolioId, String username) {
         User principal = userService.getByUsernameOrThrow(username);
         Portfolio portfolio = portfolioRepository.findById(portfolioId)

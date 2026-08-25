@@ -46,6 +46,19 @@ public class PortfolioController {
                 .toList();
     }
 
+    /**
+     * Mandate des angemeldeten Portfolio-Managers. Steht vor {@code /{id}}, damit der Pfad nicht als
+     * Portfolio-Id gelesen wird. Wer nicht die Rolle MANAGER trägt, erhält eine leere Liste und
+     * keinen Fehler: die Oberfläche fragt den Endpunkt rollenabhängig gar nicht erst ab, und ein 403
+     * wäre hier kein Fehlerfall, sondern die normale Auskunft "keine Mandate".
+     */
+    @GetMapping("/managed")
+    public List<PortfolioResponseDto> listManaged(Principal principal) {
+        return portfolioService.listManagedBy(principal.getName()).stream()
+                .map(portfolioMapper::toResponseDto)
+                .toList();
+    }
+
     @GetMapping("/{id}")
     public PortfolioResponseDto get(Principal principal, @PathVariable Long id) {
         return portfolioMapper.toResponseDto(portfolioService.getOwnedOrThrow(id, principal.getName()));
