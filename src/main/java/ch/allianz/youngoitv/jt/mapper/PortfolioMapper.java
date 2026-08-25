@@ -8,6 +8,7 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface PortfolioMapper {
 
+    @Mapping(target = "ownerUsername", source = "user.username")
     @Mapping(target = "managerUserId", source = "manager.id")
     @Mapping(target = "managerUsername", source = "manager.username")
     PortfolioResponseDto toResponseDto(Portfolio portfolio);

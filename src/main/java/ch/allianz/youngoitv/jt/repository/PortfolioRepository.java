@@ -7,4 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
 
     List<Portfolio> findByUserId(Long userId);
+
+    /** Mandate eines Portfolio-Managers: alle Portfolios, denen er als Manager zugeordnet ist. */
+    List<Portfolio> findByManagerId(Long managerId);
 }
