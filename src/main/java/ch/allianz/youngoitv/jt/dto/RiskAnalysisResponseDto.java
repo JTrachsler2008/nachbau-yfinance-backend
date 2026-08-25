@@ -17,6 +17,11 @@ import java.util.List;
  * Volatilitaet von 0 ist eine fachliche Aussage (ein Wert, der sich nie bewegt), das Fehlen von
  * Kursdaten ist keine.</p>
  *
+ * @param benchmarkReturn annualisierte Rendite der Benchmark im Zeitraum in Prozent; {@code null},
+ *     wenn zur Benchmark keine verwertbaren Kursdaten vorliegen
+ * @param benchmarkVolatility annualisierte Volatilitaet der Benchmark im Zeitraum in Prozent. Zusammen
+ *     mit {@code benchmarkReturn} der Bezugspunkt, ohne den die Kennzahlen des Portfolios keine
+ *     Einordnung haben: eine Volatilitaet von 18% ist je nach Marktphase hoch oder niedrig
  * @param observations Anzahl Tagesrenditen, auf denen die Portfoliokennzahlen beruhen
  * @param riskFreeRate risikofreier Zins in Prozent, der in die Sharpe Ratio eingeht
  * @param diversificationBenefit um wie viele Prozentpunkte die Volatilitaet des Portfolios unter der
@@ -30,6 +35,8 @@ public record RiskAnalysisResponseDto(
         LocalDate from,
         LocalDate to,
         String benchmarkSymbol,
+        BigDecimal benchmarkReturn,
+        BigDecimal benchmarkVolatility,
         int observations,
         BigDecimal riskFreeRate,
         BigDecimal annualizedReturn,
