@@ -55,20 +55,26 @@ class TransactionControllerTest {
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
     }
 
-    private long createAccount(String token, String currency) throws Exception {
+    private long createPortfolio(String token, String currency) throws Exception {
         MvcResult portfolioResult = mockMvc.perform(post("/portfolios")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Test\",\"baseCurrency\":\"" + currency + "\"}"))
                 .andReturn();
-        long portfolioId = jsonId(portfolioResult);
+        return jsonId(portfolioResult);
+    }
 
+    private long createAccountIn(String token, long portfolioId, String name, String currency) throws Exception {
         MvcResult accountResult = mockMvc.perform(post("/portfolios/" + portfolioId + "/accounts")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Cash\",\"currency\":\"" + currency + "\"}"))
+                        .content("{\"name\":\"" + name + "\",\"currency\":\"" + currency + "\"}"))
                 .andReturn();
         return jsonId(accountResult);
+    }
+
+    private long createAccount(String token, String currency) throws Exception {
+        return createAccountIn(token, createPortfolio(token, currency), "Cash", currency);
     }
 
     private long createSecurity(String token, String symbol, String currency) throws Exception {
@@ -250,6 +256,56 @@ class TransactionControllerTest {
                                  "transactionCurrency":"CHF","transactionDate":"2026-01-10"}
                                 """.formatted(securityId)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void portfolioHistoryCoversAllAccountsNewestFirstAndCarriesNames() throws Exception {
+        String token = tokenFor("bianca");
+        long portfolioId = createPortfolio(token, "CHF");
+        long ersterAccount = createAccountIn(token, portfolioId, "Cash A", "CHF");
+        long zweiterAccount = createAccountIn(token, portfolioId, "Cash B", "CHF");
+        long securityId = createSecurity(token, "VHIST", "CHF");
+        deposit(token, ersterAccount, "10000.00");
+        deposit(token, zweiterAccount, "10000.00");
+
+        mockMvc.perform(post("/accounts/" + ersterAccount + "/transactions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"securityId":%d,"transactionType":"BUY","quantity":10,"price":100,
+                         "transactionCurrency":"CHF","transactionDate":"2026-01-01"}
+                        """.formatted(securityId)));
+        mockMvc.perform(post("/accounts/" + zweiterAccount + "/transactions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"securityId":%d,"transactionType":"BUY","quantity":5,"price":120,
+                         "transactionCurrency":"CHF","transactionDate":"2026-03-01"}
+                        """.formatted(securityId)));
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                // Die beiden Einzahlungen sind keine Transaktionen, daher nur die zwei Kaeufe.
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].transactionDate").value("2026-03-01"))
+                .andExpect(jsonPath("$[0].accountName").value("Cash B"))
+                .andExpect(jsonPath("$[0].accountId").value((int) zweiterAccount))
+                .andExpect(jsonPath("$[0].symbol").value("VHIST"))
+                .andExpect(jsonPath("$[0].securityName").value("VHIST Inc."))
+                .andExpect(jsonPath("$[1].transactionDate").value("2026-01-01"))
+                .andExpect(jsonPath("$[1].accountName").value("Cash A"));
+    }
+
+    @Test
+    void portfolioHistoryOfAnotherUserReturns403() throws Exception {
+        String eigner = tokenFor("carlos");
+        long portfolioId = createPortfolio(eigner, "CHF");
+
+        String fremder = tokenFor("dorothea");
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + fremder))
+                .andExpect(status().isForbidden());
     }
 
     @Test

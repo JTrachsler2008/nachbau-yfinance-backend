@@ -6,6 +6,7 @@ import ch.allianz.youngoitv.jt.mapper.SecurityMapper;
 import ch.allianz.youngoitv.jt.service.SecurityService;
 import jakarta.validation.Valid;
 import java.security.Principal;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +33,12 @@ public class SecurityController {
             Principal principal, @Valid @RequestBody SecurityCreateRequestDto request) {
         var security = securityService.create(request, principal.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(securityMapper.toResponseDto(security));
+    }
+
+    /** Liste aller Wertpapiere für das Auswahlfeld im Transaktionsformular. */
+    @GetMapping
+    public List<SecurityResponseDto> list() {
+        return securityService.listAll().stream().map(securityMapper::toResponseDto).toList();
     }
 
     @GetMapping("/{symbol}")

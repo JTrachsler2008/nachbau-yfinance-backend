@@ -32,7 +32,8 @@ public class UserController {
 
     @GetMapping("/me")
     public MeResponseDto me(Principal principal) {
-        return new MeResponseDto(principal.getName());
+        var user = userService.getByUsernameOrThrow(principal.getName());
+        return new MeResponseDto(user.getUsername(), user.getRole());
     }
 
     @PostMapping

@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.allianz.youngoitv.jt.service.UserService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -16,10 +17,12 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Transactional
 class JwtAuthenticationFilterTest {
 
     @Autowired
@@ -27,6 +30,9 @@ class JwtAuthenticationFilterTest {
 
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private UserService userService;
 
     @Value("${app.jwt.secret}")
     private String jwtSecret;
@@ -49,12 +55,17 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void requestWithValidTokenReachesControllerWithCorrectPrincipal() throws Exception {
+        // Der Benutzer muss angelegt sein, weil /users/me seit der Rollenangabe im Datenbestand
+        // nachschlägt. Ein Token allein beweist nur, wer es ausgestellt hat, nicht dass es den
+        // Benutzer noch gibt.
+        userService.register("erin", "erin@example.com", "password123");
         String token = jwtService.generateToken("erin");
 
         mockMvc.perform(get("/users/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value("erin"));
+                .andExpect(jsonPath("$.username").value("erin"))
+                .andExpect(jsonPath("$.role").value("PRIVATANLEGER"));
     }
 
     @Test

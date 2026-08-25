@@ -1,8 +1,10 @@
 package ch.allianz.youngoitv.jt.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ch.allianz.youngoitv.jt.entity.UserRole;
@@ -94,6 +96,21 @@ class UserControllerTest {
     }
 
     @Test
+    void meReturnsUsernameAndCurrentRole() throws Exception {
+        var user = userService.register("rahel", "rahel@example.com", "password123");
+        user.setRole(UserRole.MANAGER);
+        userRepository.save(user);
+
+        mockMvc.perform(get("/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtService.generateToken("rahel")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("rahel"))
+                // Die Rolle kommt aus dem Datenbestand, nicht aus dem Token: eine Rollenänderung wirkt
+                // damit ohne neue Anmeldung.
+                .andExpect(jsonPath("$.role").value("MANAGER"));
+    }
+
+    @Test
     void nonAdminCannotChangeAnyonesRoleThroughTheRealEndpoint() throws Exception {
         var caller = userService.register("marco", "marco@example.com", "password123");
         var target = userService.register("nadia", "nadia@example.com", "password123");
@@ -123,6 +140,6 @@ class UserControllerTest {
                                 {"role":"MANAGER"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.role").value("MANAGER"));
+                .andExpect(jsonPath("$.role").value("MANAGER"));
     }
 }
