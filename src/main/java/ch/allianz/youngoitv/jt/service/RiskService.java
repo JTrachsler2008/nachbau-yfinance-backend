@@ -21,6 +21,33 @@ public class RiskService {
         return BigDecimal.valueOf(dailyStdDev * Math.sqrt(TRADING_DAYS_PER_YEAR));
     }
 
+    /**
+     * Geometrisch annualisierte Rendite (CAGR) einer Reihe von Tagesrenditen. Die Renditen werden
+     * verkettet und das Ergebnis auf 252 Handelstage hochgerechnet, es ist also nicht das 252-fache
+     * des Mittelwerts: ein Plus von 10% und danach ein Minus von 10% ergeben zusammen -1% und nicht 0%.
+     *
+     * <p>Faellt der verkettete Wert auf 0 oder darunter, ist das Kapital aufgebraucht; dann gilt
+     * -1.0 (-100%), weil eine Wurzel aus einer negativen Zahl keine Rendite ergaebe.</p>
+     *
+     * <p>Bei sehr kurzen Reihen ist die Hochrechnung mathematisch korrekt, aber wenig belastbar: aus
+     * zwanzig Tagen wird mit dem Exponenten 12.6 hochgerechnet. Wer die Reihe zusammenstellt, sollte
+     * daher eine Mindestlaenge verlangen.</p>
+     */
+    public BigDecimal annualizedReturn(List<BigDecimal> dailyReturns) {
+        if (dailyReturns.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        double growth = 1.0;
+        for (BigDecimal dailyReturn : dailyReturns) {
+            growth *= 1.0 + dailyReturn.doubleValue();
+        }
+        if (growth <= 0.0) {
+            return BigDecimal.valueOf(-1.0);
+        }
+        double years = (double) dailyReturns.size() / TRADING_DAYS_PER_YEAR;
+        return BigDecimal.valueOf(Math.pow(growth, 1.0 / years) - 1.0);
+    }
+
     public BigDecimal sharpeRatio(List<BigDecimal> dailyReturns) {
         return sharpeRatio(dailyReturns, DEFAULT_RISK_FREE_RATE);
     }
