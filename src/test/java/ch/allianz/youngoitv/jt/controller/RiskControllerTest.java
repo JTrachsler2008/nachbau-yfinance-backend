@@ -157,6 +157,7 @@ class RiskControllerTest {
      * Sharpe (0 - 0.04)/0.317490 = -0.13. AAA ist punktweise genau das Doppelte von SPY, also Beta 2.00.
      * VaR 95%: bei 24 Werten ist rank = ceil(1.2) = 2, also der zweitschlechteste Wert = -2.00%.
      * Verkettet: (1.02*0.98)^12 = 0.9996^12, auf ein Jahr 0.9996^126 = 0.95084, somit -4.92%.
+     * Die Benchmark selbst: 0.01*sqrt(252) = 15.87% Volatilitaet und 0.9999^126 = 0.98748, also -1.25%.
      */
     @Test
     void returnsHandComputedMetricsForASinglePosition() throws Exception {
@@ -171,6 +172,8 @@ class RiskControllerTest {
                 .andExpect(jsonPath("$.portfolioId").value((int) portfolioId))
                 .andExpect(jsonPath("$.currency").value("CHF"))
                 .andExpect(jsonPath("$.benchmarkSymbol").value("SPY"))
+                .andExpect(jsonPath("$.benchmarkVolatility").value(15.87))
+                .andExpect(jsonPath("$.benchmarkReturn").value(-1.25))
                 .andExpect(jsonPath("$.observations").value(24))
                 .andExpect(jsonPath("$.riskFreeRate").value(4.00))
                 .andExpect(jsonPath("$.volatility").value(31.75))
@@ -334,6 +337,10 @@ class RiskControllerTest {
                 .andExpect(jsonPath("$.volatility").value(31.75))
                 .andExpect(jsonPath("$.beta").value(nullValue()))
                 .andExpect(jsonPath("$.securities[0].beta").value(nullValue()))
+                // Auch die Kennzahlen der Benchmark bleiben leer statt auf 0 zu fallen: eine
+                // Referenzvolatilitaet von 0% waere als Vergleichsmass schlimmer als keine.
+                .andExpect(jsonPath("$.benchmarkVolatility").value(nullValue()))
+                .andExpect(jsonPath("$.benchmarkReturn").value(nullValue()))
                 .andExpect(jsonPath("$.excluded[?(@.symbol == 'SPY')].reason").value("NO_PRICE_HISTORY"));
     }
 

@@ -124,6 +124,16 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
         }
 
         NavigableMap<LocalDate, BigDecimal> benchmarkReturns = benchmarkReturns(benchmarkSymbol, from, to, excluded);
+        // Rendite und Volatilitaet der Benchmark gehoeren ins Ergebnis, weil eine Volatilitaet von 18%
+        // je nach Marktphase hoch oder niedrig ist. Ohne den Bezugspunkt muesste die Oberflaeche eine
+        // Einordnung behaupten, die in der Zahl nicht steckt.
+        List<BigDecimal> benchmarkSeries =
+                benchmarkReturns == null ? List.of() : List.copyOf(benchmarkReturns.values());
+        BigDecimal benchmarkReturn =
+                benchmarkReturns == null ? null : asPercent(riskService.annualizedReturn(benchmarkSeries));
+        BigDecimal benchmarkVolatility =
+                benchmarkReturns == null ? null : asPercent(riskService.annualizedVolatility(benchmarkSeries));
+
         BigDecimal totalValue = series.values().stream()
                 .map(SymbolSeries::marketValue)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -148,7 +158,8 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
         if (portfolioReturns.isEmpty()) {
             return new RiskAnalysisResponseDto(
                     portfolio.getId(), portfolio.getName(), portfolio.getBaseCurrency(), from, to, benchmarkSymbol,
-                    0, asPercent(RISK_FREE_RATE), null, null, null, null, null, null, null, securities, excluded);
+                    benchmarkReturn, benchmarkVolatility, 0, asPercent(RISK_FREE_RATE),
+                    null, null, null, null, null, null, null, securities, excluded);
         }
 
         BigDecimal volatility = riskService.annualizedVolatility(portfolioReturns);
@@ -159,6 +170,8 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
                 from,
                 to,
                 benchmarkSymbol,
+                benchmarkReturn,
+                benchmarkVolatility,
                 portfolioReturns.size(),
                 asPercent(RISK_FREE_RATE),
                 asPercent(riskService.annualizedReturn(portfolioReturns)),
