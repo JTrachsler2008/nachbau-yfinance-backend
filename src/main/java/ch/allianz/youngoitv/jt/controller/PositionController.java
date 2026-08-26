@@ -29,8 +29,10 @@ public class PositionController {
 
     @GetMapping("/portfolios/{portfolioId}/positions")
     public List<PortfolioPositionResponseDto> forPortfolio(Principal principal, @PathVariable Long portfolioId) {
-        return positionService.listForPortfolio(portfolioId, principal.getName()).stream()
-                .map(positionMapper::toPortfolioResponseDto)
+        var positions = positionService.listForPortfolio(portfolioId, principal.getName());
+        var valuations = positionService.valuationsFor(positions);
+        return positions.stream()
+                .map(position -> positionMapper.toPortfolioResponseDto(position, valuations.get(position.getId())))
                 .toList();
     }
 }

@@ -1,15 +1,21 @@
 package ch.allianz.youngoitv.jt.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.allianz.youngoitv.jt.client.MarketDataProvider;
+import ch.allianz.youngoitv.jt.client.Quote;
 import ch.allianz.youngoitv.jt.entity.UserRole;
 import ch.allianz.youngoitv.jt.repository.UserRepository;
 import ch.allianz.youngoitv.jt.security.JwtService;
 import ch.allianz.youngoitv.jt.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +23,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +45,14 @@ class PositionControllerTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    /**
+     * Ohne diesen Mock würde jeder Test hier auf den echten, in der Testumgebung nicht erreichbaren
+     * Marktdatenanbieter warten (Connect-Timeout je Symbol) - Live-Bewertung ist eigener Gegenstand
+     * von {@code PositionServiceImplTest}, hier zählt nur, dass die Bestandsdaten selbst stimmen.
+     */
+    @MockitoBean
+    private MarketDataProvider marketDataProvider;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -97,6 +112,7 @@ class PositionControllerTest {
 
     @Test
     void listCoversAllAccountsSortedBySymbolWithSecurityDetails() throws Exception {
+        when(marketDataProvider.getQuote(any())).thenReturn(Optional.empty());
         String token = tokenFor("paula");
         long portfolioId = createPortfolio(token);
         long ersterAccount = createAccount(token, portfolioId, "Cash A");
@@ -122,6 +138,44 @@ class PositionControllerTest {
                 .andExpect(jsonPath("$[0].tradingCurrency").value("CHF"))
                 .andExpect(jsonPath("$[1].symbol").value("ZETA"))
                 .andExpect(jsonPath("$[1].accountName").value("Cash A"));
+    }
+
+    @Test
+    void addsLiveMarketValueAndGainWhenAQuoteIsAvailable() throws Exception {
+        when(marketDataProvider.getQuote("ZETA"))
+                .thenReturn(Optional.of(new Quote("ZETA", new BigDecimal("120"), "CHF", null)));
+        String token = tokenFor("petra");
+        long portfolioId = createPortfolio(token);
+        long accountId = createAccount(token, portfolioId, "Cash A");
+        long zeta = createSecurity(token, "ZETA");
+        buy(token, accountId, zeta, "10", "100");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/positions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].currentPrice").value(120.0))
+                // 10 * 120 - 10 * 100
+                .andExpect(jsonPath("$[0].marketValue").value(1200.0))
+                .andExpect(jsonPath("$[0].unrealizedGainLoss").value(200.0));
+    }
+
+    @Test
+    void leavesValuationFieldsEmptyWithoutALiveQuoteInsteadOfAssumingZero() throws Exception {
+        when(marketDataProvider.getQuote(any())).thenReturn(Optional.empty());
+        String token = tokenFor("otto");
+        long portfolioId = createPortfolio(token);
+        long accountId = createAccount(token, portfolioId, "Cash A");
+        long zeta = createSecurity(token, "ZETA");
+        buy(token, accountId, zeta, "10", "100");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/positions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].currentPrice").doesNotExist())
+                .andExpect(jsonPath("$[0].marketValue").doesNotExist())
+                .andExpect(jsonPath("$[0].unrealizedGainLoss").doesNotExist())
+                // Der Bestand selbst bleibt trotzdem vollständig sichtbar.
+                .andExpect(jsonPath("$[0].totalQuantity").value(10.0));
     }
 
     @Test

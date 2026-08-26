@@ -1,15 +1,22 @@
 package ch.allianz.youngoitv.jt.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.allianz.youngoitv.jt.client.MarketDataProvider;
+import ch.allianz.youngoitv.jt.client.Quote;
 import ch.allianz.youngoitv.jt.entity.UserRole;
 import ch.allianz.youngoitv.jt.repository.UserRepository;
 import ch.allianz.youngoitv.jt.security.JwtService;
 import ch.allianz.youngoitv.jt.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +24,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +46,13 @@ class PerformanceControllerTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    /**
+     * Ohne diesen Mock würde jeder Test hier auf den in der Testumgebung nicht erreichbaren echten
+     * Marktdatenanbieter warten (Connect-Timeout je Symbol).
+     */
+    @MockitoBean
+    private MarketDataProvider marketDataProvider;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -160,5 +175,103 @@ class PerformanceControllerTest {
                         .param("currency", "CHF"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.amount").value(450.0));
+    }
+
+    @Test
+    void valuationSumsMarketValueCostBasisAndGainFromALiveQuote() throws Exception {
+        when(marketDataProvider.getQuote("PVAL")).thenReturn(
+                Optional.of(new Quote("PVAL", new BigDecimal("120"), "CHF", null)));
+        String token = tokenFor("erik");
+        long portfolioId = createPortfolio(token, "CHF");
+        long accountId = createAccount(token, portfolioId, "CHF");
+        long securityId = createSecurity(token, "PVAL", "CHF");
+        mockMvc.perform(post("/accounts/" + accountId + "/deposit")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":10000}"));
+        transact(token, accountId, String.valueOf(securityId), "BUY",
+                "\"quantity\":10,\"price\":100,\"transactionCurrency\":\"CHF\",\"transactionDate\":\"2026-01-01\"");
+
+        // Marktwert 10*120 = 1200, Einstand 10*100 = 1000, Gewinn 200.
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/valuation")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currency").value("CHF"))
+                .andExpect(jsonPath("$.marketValue").value(1200.0))
+                .andExpect(jsonPath("$.costBasis").value(1000.0))
+                .andExpect(jsonPath("$.unrealizedGainLoss").value(200.0))
+                .andExpect(jsonPath("$.excludedSymbols").isEmpty());
+    }
+
+    @Test
+    void valuationLeavesFieldsEmptyAndListsTheSymbolWithoutALiveQuote() throws Exception {
+        when(marketDataProvider.getQuote(any())).thenReturn(Optional.empty());
+        String token = tokenFor("fiona");
+        long portfolioId = createPortfolio(token, "CHF");
+        long accountId = createAccount(token, portfolioId, "CHF");
+        long securityId = createSecurity(token, "PNQ", "CHF");
+        mockMvc.perform(post("/accounts/" + accountId + "/deposit")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":10000}"));
+        transact(token, accountId, String.valueOf(securityId), "BUY",
+                "\"quantity\":10,\"price\":100,\"transactionCurrency\":\"CHF\",\"transactionDate\":\"2026-01-01\"");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/valuation")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.marketValue").doesNotExist())
+                .andExpect(jsonPath("$.costBasis").doesNotExist())
+                .andExpect(jsonPath("$.unrealizedGainLoss").doesNotExist())
+                .andExpect(jsonPath("$.excludedSymbols[0]").value("PNQ"));
+    }
+
+    @Test
+    void valuationIsZeroForAPortfolioWithoutAnyHoldings() throws Exception {
+        String token = tokenFor("gustav");
+        long portfolioId = createPortfolio(token, "CHF");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/valuation")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.marketValue").value(0.0))
+                .andExpect(jsonPath("$.costBasis").value(0.0))
+                .andExpect(jsonPath("$.unrealizedGainLoss").value(0.0));
+    }
+
+    @Test
+    void returnsComputesTheMoneyWeightedReturnFromRealCashFlows() throws Exception {
+        // Kauf vor genau 365 Tagen fuer 1000, heutiger Marktwert 1100: -1000 + 1100/(1+r) = 0
+        // => r = 0.10 (10%), exakt von Hand nachvollziehbar wie in MwrServiceTest.
+        LocalDate purchaseDate = LocalDate.now().minusDays(365);
+        when(marketDataProvider.getQuote("PMWR")).thenReturn(
+                Optional.of(new Quote("PMWR", new BigDecimal("110"), "CHF", null)));
+        String token = tokenFor("hanna");
+        long portfolioId = createPortfolio(token, "CHF");
+        long accountId = createAccount(token, portfolioId, "CHF");
+        long securityId = createSecurity(token, "PMWR", "CHF");
+        mockMvc.perform(post("/accounts/" + accountId + "/deposit")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":10000}"));
+        transact(token, accountId, String.valueOf(securityId), "BUY",
+                "\"quantity\":10,\"price\":100,\"transactionCurrency\":\"CHF\",\"transactionDate\":\"" + purchaseDate + "\"");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/returns")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.timeWeightedReturn").doesNotExist())
+                .andExpect(jsonPath("$.moneyWeightedReturn").value(10.0));
+    }
+
+    @Test
+    void returnsIsNullForAPortfolioWithoutAnyTransactions() throws Exception {
+        String token = tokenFor("ivo");
+        long portfolioId = createPortfolio(token, "CHF");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/returns")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.moneyWeightedReturn").doesNotExist());
     }
 }
