@@ -101,6 +101,40 @@ public class RiskService {
     }
 
     /**
+     * Wie {@link #maxDrawdown}, zusätzlich mit den Positionen des Höchststands und des Tiefpunkts in
+     * {@code valueSeries} - für eine Oberfläche, die zeigen will, wann der Rückgang war und wie lange
+     * er dauerte, nicht nur wie gross.
+     *
+     * <p>Eigene Methode statt einer Änderung von {@link #maxDrawdown}: die bestehende Methode wird an
+     * Stellen verwendet (z.B. je Wertpapier), an denen die Positionen nicht gebraucht werden und ein
+     * zusätzliches Record den Aufruf nur verkomplizieren würde.</p>
+     */
+    public DrawdownPeriod maxDrawdownPeriod(List<BigDecimal> valueSeries) {
+        if (valueSeries.isEmpty()) {
+            return new DrawdownPeriod(BigDecimal.ZERO, 0, 0);
+        }
+        double peak = valueSeries.get(0).doubleValue();
+        int peakIndex = 0;
+        int worstPeakIndex = 0;
+        int worstTroughIndex = 0;
+        double worstDrawdown = 0.0;
+        for (int i = 0; i < valueSeries.size(); i++) {
+            double current = valueSeries.get(i).doubleValue();
+            if (current > peak) {
+                peak = current;
+                peakIndex = i;
+            }
+            double drawdown = (current - peak) / peak;
+            if (drawdown < worstDrawdown) {
+                worstDrawdown = drawdown;
+                worstPeakIndex = peakIndex;
+                worstTroughIndex = i;
+            }
+        }
+        return new DrawdownPeriod(BigDecimal.valueOf(worstDrawdown), worstPeakIndex, worstTroughIndex);
+    }
+
+    /**
      * Historischer VaR 95%: das 5%-Perzentil der täglichen Renditen (Nearest-Rank-Verfahren).
      */
     public BigDecimal valueAtRisk95(List<BigDecimal> dailyReturns) {

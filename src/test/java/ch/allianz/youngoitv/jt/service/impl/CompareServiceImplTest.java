@@ -41,7 +41,8 @@ class CompareServiceImplTest {
                 org.mockito.ArgumentMatchers.argThat(s -> s != null && !s.equals("SPY")), any()))
                 .thenReturn(Optional.empty());
 
-        AssetClassComparisonResponseDto result = service.getAssetClassComparison(1);
+        AssetClassComparisonResponseDto result =
+                service.getAssetClassComparison(LocalDate.now().minusYears(1), LocalDate.now().minusDays(1));
 
         assertThat(result.assetClasses()).hasSize(1);
         assertThat(result.assetClasses().get(0).symbol()).isEqualTo("SPY");
@@ -65,7 +66,7 @@ class CompareServiceImplTest {
 
         var portfolioA = new PortfolioCompositionDto("Nur AAA", List.of(new WeightedSymbolDto("AAA", BigDecimal.ONE)));
         var portfolioB = new PortfolioCompositionDto("Nur BBB", List.of(new WeightedSymbolDto("BBB", BigDecimal.ONE)));
-        var request = new ComparePortfoliosRequestDto(portfolioA, portfolioB, 1);
+        var request = new ComparePortfoliosRequestDto(portfolioA, portfolioB, 1, null, null);
 
         var result = service.comparePortfolios(request);
 
@@ -86,7 +87,7 @@ class CompareServiceImplTest {
         var portfolioA = new PortfolioCompositionDto("Mix", List.of(
                 new WeightedSymbolDto("AAA", BigDecimal.ONE), new WeightedSymbolDto("CCC", BigDecimal.ONE)));
         var portfolioB = new PortfolioCompositionDto("Nur AAA", List.of(new WeightedSymbolDto("AAA", BigDecimal.ONE)));
-        var request = new ComparePortfoliosRequestDto(portfolioA, portfolioB, 1);
+        var request = new ComparePortfoliosRequestDto(portfolioA, portfolioB, 1, null, null);
 
         var result = service.comparePortfolios(request);
 
@@ -101,7 +102,7 @@ class CompareServiceImplTest {
         var portfolioA = new PortfolioCompositionDto("Leer", List.of(new WeightedSymbolDto("AAA", BigDecimal.ZERO)));
         var portfolioB = new PortfolioCompositionDto("Nur AAA", List.of(new WeightedSymbolDto("AAA", BigDecimal.ONE)));
         lenient().when(priceLookupService.findPriceAtOrBefore(eq("AAA"), any())).thenReturn(Optional.of(new BigDecimal("50")));
-        var request = new ComparePortfoliosRequestDto(portfolioA, portfolioB, 1);
+        var request = new ComparePortfoliosRequestDto(portfolioA, portfolioB, 1, null, null);
 
         var result = service.comparePortfolios(request);
 

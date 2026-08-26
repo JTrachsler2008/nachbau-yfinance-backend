@@ -55,9 +55,7 @@ public class CompareServiceImpl implements CompareService {
     }
 
     @Override
-    public AssetClassComparisonResponseDto getAssetClassComparison(int periodYears) {
-        LocalDate from = LocalDate.now().minusYears(periodYears);
-        LocalDate to = LocalDate.now().minusDays(1);
+    public AssetClassComparisonResponseDto getAssetClassComparison(LocalDate from, LocalDate to) {
         List<LocalDate> months = monthlyGrid(from, to);
 
         Map<String, BigDecimal> baseValues = new HashMap<>();
@@ -90,9 +88,10 @@ public class CompareServiceImpl implements CompareService {
 
     @Override
     public ComparePortfoliosResponseDto comparePortfolios(ComparePortfoliosRequestDto request) {
-        int periodYears = request.periodYears() != null ? request.periodYears() : 10;
-        LocalDate from = LocalDate.now().minusYears(periodYears);
-        LocalDate to = LocalDate.now().minusDays(1);
+        LocalDate to = request.to() != null ? request.to() : LocalDate.now().minusDays(1);
+        LocalDate from = request.from() != null
+                ? request.from()
+                : to.minusYears(request.periodYears() != null ? request.periodYears() : 10);
         List<LocalDate> months = monthlyGrid(from, to);
 
         Map<String, BigDecimal> baseValues = new HashMap<>();

@@ -70,6 +70,34 @@ class RiskServiceTest {
         assertThat(result.doubleValue()).isCloseTo(-0.3846153846, Offset.offset(1e-8));
     }
 
+    /**
+     * Dieselbe Reihe wie {@code maxDrawdownMatchesHandComputedValue}: der grösste Rückgang ist
+     * (80-130)/130 = -38.46...%, vom bis dahin letzten Höchststand bei Index 3 (Wert 130) zum
+     * Tiefpunkt bei Index 4 (Wert 80) - nicht vom früheren, kleineren Hoch bei Index 1 (120), dessen
+     * eigener Rückgang auf Index 2 mit -25% kleiner ausfällt.
+     */
+    @Test
+    void maxDrawdownPeriodFindsThePeakAndTroughPositions() {
+        List<BigDecimal> values = decimalsOf(100, 120, 90, 130, 80);
+
+        DrawdownPeriod result = riskService.maxDrawdownPeriod(values);
+
+        assertThat(result.peakIndex()).isEqualTo(3);
+        assertThat(result.troughIndex()).isEqualTo(4);
+        assertThat(result.drawdown().doubleValue()).isCloseTo(-0.3846153846, Offset.offset(1e-8));
+    }
+
+    @Test
+    void maxDrawdownPeriodOfMonotonicallyRisingSeriesPointsAtTheStart() {
+        List<BigDecimal> values = decimalsOf(100, 110, 120, 130);
+
+        DrawdownPeriod result = riskService.maxDrawdownPeriod(values);
+
+        assertThat(result.peakIndex()).isEqualTo(0);
+        assertThat(result.troughIndex()).isEqualTo(0);
+        assertThat(result.drawdown()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
     @Test
     void maxDrawdownOfMonotonicallyRisingSeriesIsZero() {
         List<BigDecimal> values = decimalsOf(100, 110, 120, 130);

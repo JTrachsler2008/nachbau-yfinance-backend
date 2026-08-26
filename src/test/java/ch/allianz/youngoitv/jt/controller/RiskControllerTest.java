@@ -363,6 +363,88 @@ class RiskControllerTest {
                 .andExpect(jsonPath("$.excluded.length()").value(0));
     }
 
+    /**
+     * Explizite Kursliste statt {@code reihe()}: Peak bei Index 10 (115), Tiefpunkt bei Index 15
+     * (70), Rückgang (70-115)/115 = -39.130...%. Die Tage sind fortlaufend ab "vor 21 Tagen"
+     * durchnummeriert, genauso wie {@code reihe()} es tut, damit sich die erwarteten Daten direkt
+     * aus dem Index ergeben: Index i entspricht "vor (21-i) Tagen".
+     */
+    @Test
+    void maxDrawdownReportsThePeakAndTroughDates() throws Exception {
+        String token = tokenFor("hilde");
+        double[] kurse = {100, 110, 108, 104, 96, 90, 95, 100, 105, 110, 115, 108, 100, 90, 80, 70, 75, 78, 80, 82, 85};
+        List<HistoricalPrice> prices = new ArrayList<>();
+        LocalDate start = LocalDate.now().minusDays(kurse.length);
+        for (int i = 0; i < kurse.length; i++) {
+            prices.add(new HistoricalPrice(start.plusDays(i), BigDecimal.valueOf(kurse[i])));
+        }
+        kurse("DDD", prices);
+        long portfolioId = portfolioMitBestand(token, "DDD", "10");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/risk")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maxDrawdown").value(-39.13))
+                .andExpect(jsonPath("$.maxDrawdownPeakDate").value(start.plusDays(10).toString()))
+                .andExpect(jsonPath("$.maxDrawdownTroughDate").value(start.plusDays(15).toString()));
+    }
+
+    @Test
+    void customDateRangeOverridesLookbackDaysAndIsReflectedInTheResponse() throws Exception {
+        String token = tokenFor("ida");
+        kurse("AAA", reihe("100", HANDELSTAGE, "1.02", "0.98"));
+        long portfolioId = portfolioMitBestand(token, "AAA", "10");
+        LocalDate to = LocalDate.now().minusDays(1);
+        LocalDate from = to.minusDays(40);
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/risk")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("from", from.toString())
+                        .param("to", to.toString())
+                        // lookbackDays hat neben einem vollständigen from/to keine Wirkung mehr.
+                        .param("lookbackDays", "3650"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value(from.toString()))
+                .andExpect(jsonPath("$.to").value(to.toString()));
+    }
+
+    @Test
+    void customRangeWithOnlyOneDateGivenReturns400() throws Exception {
+        String token = tokenFor("jonas");
+        long portfolioId = createPortfolio(token);
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/risk")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("from", LocalDate.now().minusDays(100).toString()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void customRangeWithFromAfterToReturns400() throws Exception {
+        String token = tokenFor("klara");
+        long portfolioId = createPortfolio(token);
+        LocalDate to = LocalDate.now().minusDays(1);
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/risk")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("from", to.toString())
+                        .param("to", to.minusDays(100).toString()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void customRangeShorterThanMinimumLookbackReturns400() throws Exception {
+        String token = tokenFor("lukas");
+        long portfolioId = createPortfolio(token);
+        LocalDate to = LocalDate.now().minusDays(1);
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/risk")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("from", to.minusDays(10).toString())
+                        .param("to", to.toString()))
+                .andExpect(status().isBadRequest());
+    }
+
     @Test
     void usesTheRequestedBenchmarkAndNormalisesItsSymbol() throws Exception {
         String token = tokenFor("anna");
@@ -390,6 +472,8 @@ class RiskControllerTest {
                 .andExpect(jsonPath("$.volatility").value(nullValue()))
                 .andExpect(jsonPath("$.sharpeRatio").value(nullValue()))
                 .andExpect(jsonPath("$.maxDrawdown").value(nullValue()))
+                .andExpect(jsonPath("$.maxDrawdownPeakDate").value(nullValue()))
+                .andExpect(jsonPath("$.maxDrawdownTroughDate").value(nullValue()))
                 .andExpect(jsonPath("$.securities.length()").value(0));
     }
 

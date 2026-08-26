@@ -1,6 +1,7 @@
 package ch.allianz.youngoitv.jt.service;
 
 import ch.allianz.youngoitv.jt.dto.RiskAnalysisResponseDto;
+import java.time.LocalDate;
 
 /**
  * Stellt die Renditereihen eines Portfolios aus historischen Kursen zusammen und lässt
@@ -13,11 +14,16 @@ import ch.allianz.youngoitv.jt.dto.RiskAnalysisResponseDto;
 public interface PortfolioRiskService {
 
     /**
-     * Risikoanalyse eines Portfolios über die letzten {@code lookbackDays} Kalendertage.
+     * Risikoanalyse eines Portfolios über den Zeitraum {@code [from, to]}.
+     *
+     * <p>Die Auflösung von Presets (z.B. "1 Jahr zurück") in konkrete Daten ist Sache des Controllers
+     * - dieser Dienst kennt nur noch den fertigen Zeitraum, ob er aus einem Preset oder einer freien
+     * Eingabe stammt, macht für die Berechnung keinen Unterschied.</p>
      *
      * @param benchmarkSymbol Referenz für das Beta, z.B. {@code SPY}
      * @throws ch.allianz.youngoitv.jt.exception.ResourceNotFoundException wenn es das Portfolio nicht gibt
      * @throws ch.allianz.youngoitv.jt.exception.UnauthorizedAccessException wenn es einem anderen Benutzer gehört
      */
-    RiskAnalysisResponseDto analyse(Long portfolioId, String username, int lookbackDays, String benchmarkSymbol);
+    RiskAnalysisResponseDto analyse(
+            Long portfolioId, String username, LocalDate from, LocalDate to, String benchmarkSymbol);
 }
