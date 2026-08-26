@@ -81,4 +81,9 @@ public class AlphaVantageProvider implements MarketDataProvider {
     public Optional<EarningsData> getEarnings(String symbol) {
         return Optional.empty();
     }
+
+    @Override
+    public Optional<List<SecuritySearchResult>> search(String query) {
+        return Optional.empty();
+    }
 }

@@ -73,6 +73,11 @@ public class FallbackMarketDataProvider implements MarketDataProvider {
         return withFallback(primary::getEarnings, secondary::getEarnings, symbol);
     }
 
+    @Override
+    public Optional<List<SecuritySearchResult>> search(String query) {
+        return withFallback(primary::search, secondary::search, query);
+    }
+
     private <T> Optional<T> withFallback(
             java.util.function.Function<String, Optional<T>> primaryCall,
             java.util.function.Function<String, Optional<T>> secondaryCall,

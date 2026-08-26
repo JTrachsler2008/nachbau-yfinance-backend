@@ -76,6 +76,21 @@ public class YFinanceProvider implements MarketDataProvider {
         return get("/earnings/{symbol}", EarningsData.class, symbol);
     }
 
+    @Override
+    public Optional<List<SecuritySearchResult>> search(String query) {
+        try {
+            List<SecuritySearchResult> results = restClient.get()
+                    .uri("/search/{query}", query)
+                    .retrieve()
+                    .body(new org.springframework.core.ParameterizedTypeReference<List<SecuritySearchResult>>() {
+                    });
+            return Optional.ofNullable(results);
+        } catch (RestClientException ex) {
+            log.warn("YFinance search failed for {}: {}", query, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
     private <T> Optional<T> get(String uriTemplate, Class<T> responseType, Object... uriVariables) {
         try {
             return Optional.ofNullable(restClient.get().uri(uriTemplate, uriVariables).retrieve().body(responseType));

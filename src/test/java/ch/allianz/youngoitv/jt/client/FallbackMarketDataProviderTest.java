@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -77,5 +78,28 @@ class FallbackMarketDataProviderTest {
         Optional<SecurityInfo> result = fallbackProvider.getInfo("UNKNOWN");
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void searchFallsBackToSecondaryWhenPrimaryUnavailable() {
+        SecuritySearchResult match = new SecuritySearchResult("AAPL", "Apple Inc.", "NASDAQ", "STOCK");
+        when(circuitBreaker.isOpen()).thenReturn(false);
+        when(primary.search("AAPL")).thenReturn(Optional.empty());
+        when(secondary.search("AAPL")).thenReturn(Optional.of(List.of(match)));
+
+        Optional<List<SecuritySearchResult>> result = fallbackProvider.search("AAPL");
+
+        assertThat(result).contains(List.of(match));
+    }
+
+    @Test
+    void searchWithNoMatchesIsNotTreatedAsAFailure() {
+        when(circuitBreaker.isOpen()).thenReturn(false);
+        when(primary.search("ZZZZZZ")).thenReturn(Optional.of(List.of()));
+
+        Optional<List<SecuritySearchResult>> result = fallbackProvider.search("ZZZZZZ");
+
+        assertThat(result).contains(List.of());
+        verifyNoInteractions(secondary);
     }
 }

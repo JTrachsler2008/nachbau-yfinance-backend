@@ -22,4 +22,13 @@ public interface MarketDataProvider {
     Optional<List<NewsItem>> getNews(String symbol, int count);
 
     Optional<EarningsData> getEarnings(String symbol);
+
+    /**
+     * Sucht Symbole und Namen beim Marktdatenanbieter, für die Live-Suche im Kaufformular.
+     *
+     * <p>{@code Optional.empty()} heisst weiterhin "Anbieter nicht erreichbar", nicht "keine
+     * Treffer": eine Suche ohne Treffer ist {@code Optional.of(List.of())}, ein normaler
+     * Bedienzustand und kein Grund, den Fallback-Anbieter zu versuchen.</p>
+     */
+    Optional<List<SecuritySearchResult>> search(String query);
 }
