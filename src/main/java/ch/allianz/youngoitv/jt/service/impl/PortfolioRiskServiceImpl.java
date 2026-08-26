@@ -10,6 +10,7 @@ import ch.allianz.youngoitv.jt.entity.Portfolio;
 import ch.allianz.youngoitv.jt.entity.Position;
 import ch.allianz.youngoitv.jt.entity.Security;
 import ch.allianz.youngoitv.jt.exception.FxRateNotAvailableException;
+import ch.allianz.youngoitv.jt.service.DrawdownPeriod;
 import ch.allianz.youngoitv.jt.service.PortfolioRiskService;
 import ch.allianz.youngoitv.jt.service.PortfolioService;
 import ch.allianz.youngoitv.jt.service.PositionService;
@@ -98,10 +99,8 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
 
     @Override
     public RiskAnalysisResponseDto analyse(
-            Long portfolioId, String username, int lookbackDays, String benchmarkSymbol) {
+            Long portfolioId, String username, LocalDate from, LocalDate to, String benchmarkSymbol) {
         Portfolio portfolio = portfolioService.getOwnedOrThrow(portfolioId, username);
-        LocalDate to = LocalDate.now().minusDays(1);
-        LocalDate from = to.minusDays(lookbackDays);
 
         List<RiskExclusionDto> excluded = new ArrayList<>();
         Map<String, SymbolSeries> series = new LinkedHashMap<>();
@@ -159,10 +158,12 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
             return new RiskAnalysisResponseDto(
                     portfolio.getId(), portfolio.getName(), portfolio.getBaseCurrency(), from, to, benchmarkSymbol,
                     benchmarkReturn, benchmarkVolatility, 0, asPercent(RISK_FREE_RATE),
-                    null, null, null, null, null, null, null, securities, excluded);
+                    null, null, null, null, null, null, null, null, null, securities, excluded);
         }
 
         BigDecimal volatility = riskService.annualizedVolatility(portfolioReturns);
+        DrawdownPeriod drawdownPeriod = riskService.maxDrawdownPeriod(indexSeries(portfolioReturns));
+        List<LocalDate> indexDates = indexDates(returnsByDate, from);
         return new RiskAnalysisResponseDto(
                 portfolio.getId(),
                 portfolio.getName(),
@@ -178,11 +179,25 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
                 asPercent(volatility),
                 asRatio(riskService.sharpeRatio(portfolioReturns, RISK_FREE_RATE)),
                 asRatio(beta(returnsByDate, benchmarkReturns)),
-                asPercent(riskService.maxDrawdown(indexSeries(portfolioReturns))),
+                asPercent(drawdownPeriod.drawdown()),
+                indexDates.get(drawdownPeriod.peakIndex()),
+                indexDates.get(drawdownPeriod.troughIndex()),
                 asPercent(riskService.valueAtRisk95(portfolioReturns)),
                 asPercent(diversificationBenefit(series.values(), totalValue, volatility)),
                 securities,
                 excluded);
+    }
+
+    /**
+     * Datum je Stelle der Wertreihe aus {@link #indexSeries}: Index 0 ist der Beginn des
+     * angefragten Zeitraums (die Reihe startet dort bei 100, ohne dass diesem Basiswert eine eigene
+     * Rendite vorausgeht), jede weitere Stelle das Datum der jeweiligen Tagesrendite.
+     */
+    private List<LocalDate> indexDates(NavigableMap<LocalDate, BigDecimal> returnsByDate, LocalDate from) {
+        List<LocalDate> dates = new ArrayList<>(returnsByDate.size() + 1);
+        dates.add(from);
+        dates.addAll(returnsByDate.keySet());
+        return dates;
     }
 
     /**

@@ -27,6 +27,11 @@ import java.util.List;
  * @param diversificationBenefit um wie viele Prozentpunkte die Volatilität des Portfolios unter der
  *     gewichteten Summe der Einzelvolatilitäten liegt; {@code null} bei weniger als zwei Wertpapieren
  * @param excluded Wertpapiere ohne verwertbare Daten, siehe {@link RiskExclusionDto}
+ * @param maxDrawdownPeakDate Datum des Höchststands, von dem aus {@code maxDrawdown} gerechnet ist;
+ *     {@code null} nur, wenn {@code maxDrawdown} selbst nicht bestimmbar ist
+ * @param maxDrawdownTroughDate Datum des Tiefpunkts von {@code maxDrawdown}. Ein Rückgang an einem
+ *     Tag liest sich anders als einer über ein Jahr, auch bei gleicher Prozentzahl - die Spanne
+ *     zwischen beiden Daten ist diese Information
  */
 public record RiskAnalysisResponseDto(
         Long portfolioId,
@@ -44,6 +49,8 @@ public record RiskAnalysisResponseDto(
         BigDecimal sharpeRatio,
         BigDecimal beta,
         BigDecimal maxDrawdown,
+        LocalDate maxDrawdownPeakDate,
+        LocalDate maxDrawdownTroughDate,
         BigDecimal valueAtRisk95,
         BigDecimal diversificationBenefit,
         List<SecurityRiskResponseDto> securities,

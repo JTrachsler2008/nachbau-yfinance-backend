@@ -89,4 +89,53 @@ class CompareControllerTest {
                 .andExpect(jsonPath("$.series[0].portfolioAValue").value(100.0))
                 .andExpect(jsonPath("$.series[0].portfolioBValue").value(100.0));
     }
+
+    @Test
+    void assetClassesAcceptsAFreeDateRangeInsteadOfAPeriodPreset() throws Exception {
+        when(marketDataProvider.getHistorical(eq("SPY"), any(), any(), eq(Interval.DAILY)))
+                .thenReturn(Optional.of(List.of(new HistoricalPrice(LocalDate.of(2020, 1, 1), new BigDecimal("100")))));
+        when(marketDataProvider.getHistorical(
+                org.mockito.ArgumentMatchers.argThat(s -> s != null && !s.equals("SPY")), any(), any(), eq(Interval.DAILY)))
+                .thenReturn(Optional.empty());
+        LocalDate to = LocalDate.now().minusDays(1);
+        LocalDate from = to.minusDays(60);
+
+        mockMvc.perform(get("/compare/asset-classes")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor("yolanda"))
+                        .param("from", from.toString())
+                        .param("to", to.toString())
+                        // Ohne Wirkung, weil from/to vorrangig sind.
+                        .param("period", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assetClasses[0].symbol").value("SPY"));
+    }
+
+    @Test
+    void assetClassesWithOnlyOneOfFromOrToReturns400() throws Exception {
+        mockMvc.perform(get("/compare/asset-classes")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor("zack"))
+                        .param("from", LocalDate.now().minusDays(60).toString()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void comparePortfoliosAcceptsAFreeDateRangeInsteadOfPeriodYears() throws Exception {
+        when(marketDataProvider.getHistorical(eq("AAA"), any(), any(), eq(Interval.DAILY)))
+                .thenReturn(Optional.of(List.of(new HistoricalPrice(LocalDate.of(2020, 1, 1), new BigDecimal("50")))));
+        when(marketDataProvider.getHistorical(eq("BBB"), any(), any(), eq(Interval.DAILY)))
+                .thenReturn(Optional.of(List.of(new HistoricalPrice(LocalDate.of(2020, 1, 1), new BigDecimal("200")))));
+        LocalDate to = LocalDate.now().minusDays(1);
+        LocalDate from = to.minusDays(60);
+
+        mockMvc.perform(post("/compare/portfolios")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor("amir"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"portfolioA":{"name":"A","positions":[{"symbol":"AAA","weight":1}]},
+                                 "portfolioB":{"name":"B","positions":[{"symbol":"BBB","weight":1}]},
+                                 "from":"%s","to":"%s"}
+                                """.formatted(from, to)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.series[0].portfolioAValue").value(100.0));
+    }
 }
