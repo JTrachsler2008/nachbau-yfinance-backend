@@ -3,21 +3,21 @@ package ch.allianz.youngoitv.jt.service;
 import ch.allianz.youngoitv.jt.dto.RiskAnalysisResponseDto;
 
 /**
- * Stellt die Renditereihen eines Portfolios aus historischen Kursen zusammen und laesst
+ * Stellt die Renditereihen eines Portfolios aus historischen Kursen zusammen und lässt
  * {@link RiskService} darauf rechnen.
  *
- * <p>Die Trennung ist beabsichtigt: {@link RiskService} bleibt eine Sammlung reiner Funktionen ueber
- * uebergebene Reihen und damit ohne Testdoubles pruefbar, waehrend hier die Beschaffung der Daten
- * liegt (Bestaende, Kurshistorie, Wechselkurse) samt aller Faelle, in denen sie fehlen.</p>
+ * <p>Die Trennung ist beabsichtigt: {@link RiskService} bleibt eine Sammlung reiner Funktionen über
+ * übergebene Reihen und damit ohne Testdoubles prüfbar, während hier die Beschaffung der Daten
+ * liegt (Bestände, Kurshistorie, Wechselkurse) samt aller Fälle, in denen sie fehlen.</p>
  */
 public interface PortfolioRiskService {
 
     /**
-     * Risikoanalyse eines Portfolios ueber die letzten {@code lookbackDays} Kalendertage.
+     * Risikoanalyse eines Portfolios über die letzten {@code lookbackDays} Kalendertage.
      *
-     * @param benchmarkSymbol Referenz fuer das Beta, z.B. {@code SPY}
+     * @param benchmarkSymbol Referenz für das Beta, z.B. {@code SPY}
      * @throws ch.allianz.youngoitv.jt.exception.ResourceNotFoundException wenn es das Portfolio nicht gibt
-     * @throws ch.allianz.youngoitv.jt.exception.UnauthorizedAccessException wenn es einem anderen Benutzer gehoert
+     * @throws ch.allianz.youngoitv.jt.exception.UnauthorizedAccessException wenn es einem anderen Benutzer gehört
      */
     RiskAnalysisResponseDto analyse(Long portfolioId, String username, int lookbackDays, String benchmarkSymbol);
 }

@@ -5,7 +5,7 @@ import java.time.LocalDate;
 
 /**
  * Realisierter Gewinn/Verlust einer einzelnen SELL-Transaktion (Verkaufserlos minus
- * FIFO-Kostenbasis der abgebauten Tranchen), in der Handelswaehrung der Transaktion.
+ * FIFO-Kostenbasis der abgebauten Tranchen), in der Handelswährung der Transaktion.
  */
 public record RealizedGain(BigDecimal amount, String currency, LocalDate date) {
 }

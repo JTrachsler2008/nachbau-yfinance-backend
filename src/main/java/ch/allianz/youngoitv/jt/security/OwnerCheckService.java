@@ -7,12 +7,12 @@ import ch.allianz.youngoitv.jt.entity.UserRole;
 import org.springframework.stereotype.Service;
 
 /**
- * Zentrale Autorisierungspruefung in der Service-Schicht: prueft, dass ein Portfolio (und darueber
- * die Kette Account -&gt; Portfolio -&gt; User) dem authentifizierten User gehoert, bevor darauf
+ * Zentrale Autorisierungsprüfung in der Service-Schicht: prüft, dass ein Portfolio (und darüber
+ * die Kette Account -&gt; Portfolio -&gt; User) dem authentifizierten User gehört, bevor darauf
  * lesend oder schreibend zugegriffen wird. Erweitert um den Manager-Fall aus dem User-Rollen-Plan
- * (YOUNGOITV-440): ein User mit Rolle MANAGER, der einem Portfolio als Manager zugeordnet ist, erhaelt
- * dieselben Rechte wie der Eigentuemer - ein Admin ohne Eigentuemerschaft/Manager-Zuordnung erhaelt
- * ueber diese Methode bewusst KEIN true (Admin-Rechte wirken nur auf Security-/FxRate-Endpunkte).
+ * (YOUNGOITV-440): ein User mit Rolle MANAGER, der einem Portfolio als Manager zugeordnet ist, erhält
+ * dieselben Rechte wie der Eigentümer - ein Admin ohne Eigentümerschaft/Manager-Zuordnung erhält
+ * über diese Methode bewusst KEIN true (Admin-Rechte wirken nur auf Security-/FxRate-Endpunkte).
  */
 @Service
 public class OwnerCheckService {
@@ -27,8 +27,8 @@ public class OwnerCheckService {
     }
 
     /**
-     * Strikte Eigentuemer-Prüfung ohne den Manager-Fall - fuer Vorgaenge, die bewusst nur dem
-     * tatsaechlichen Eigentuemer vorbehalten sind (z.B. Manager-Zuweisung selbst).
+     * Strikte Eigentümer-Prüfung ohne den Manager-Fall - für Vorgänge, die bewusst nur dem
+     * tatsächlichen Eigentümer vorbehalten sind (z.B. Manager-Zuweisung selbst).
      */
     public boolean isOwner(Portfolio portfolio, User principal) {
         return portfolio.getUser().getId().equals(principal.getId());

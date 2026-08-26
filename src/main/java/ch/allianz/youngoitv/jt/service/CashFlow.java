@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * Ein Cashflow fuer die MWR-Berechnung: BUY/ACQUISITION negativ, SELL/DIVIDEND positiv, Endwert als
+ * Ein Cashflow für die MWR-Berechnung: BUY/ACQUISITION negativ, SELL/DIVIDEND positiv, Endwert als
  * letzter (positiver) Cashflow.
  */
 public record CashFlow(LocalDate date, BigDecimal amount) {

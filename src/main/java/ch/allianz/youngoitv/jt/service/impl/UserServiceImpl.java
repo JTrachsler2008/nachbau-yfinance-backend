@@ -36,8 +36,8 @@ public class UserServiceImpl implements UserService {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
         user.setCreatedAt(LocalDateTime.now());
-        // Selbstregistrierung erhaelt immer PRIVATANLEGER - ein mitgeschicktes role-Feld existiert im
-        // RegisterRequestDto bewusst nicht (verhindert Privilege-Escalation ueber Mass-Assignment).
+        // Selbstregistrierung erhält immer PRIVATANLEGER - ein mitgeschicktes role-Feld existiert im
+        // RegisterRequestDto bewusst nicht (verhindert Privilege-Escalation über Mass-Assignment).
         user.setRole(UserRole.PRIVATANLEGER);
         return userRepository.save(user);
     }

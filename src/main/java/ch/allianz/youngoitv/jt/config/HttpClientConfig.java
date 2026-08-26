@@ -7,9 +7,9 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
- * Zentrale RestClient-Beans mit konfigurierten Timeouts fuer externe Kursdatenquellen (behebt ARC-11:
+ * Zentrale RestClient-Beans mit konfigurierten Timeouts für externe Kursdatenquellen (behebt ARC-11:
  * kein ad-hoc {@code new RestTemplate()}/{@code new RestClient()} mehr in den Providern). URLs sind
- * ueber Properties konfigurierbar, nicht hartcodiert (behebt ARC-7).
+ * über Properties konfigurierbar, nicht hartcodiert (behebt ARC-7).
  */
 @Configuration
 public class HttpClientConfig {

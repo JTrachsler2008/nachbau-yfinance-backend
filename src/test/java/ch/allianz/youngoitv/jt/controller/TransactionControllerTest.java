@@ -111,7 +111,7 @@ class TransactionControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.fxRateToPortfolio").value(1));
 
-        // 10000.00 Startkapital - (10 * 100 Kaufpreis + 5 Gebuehr) = 8995.00 verbleibendes Cash.
+        // 10000.00 Startkapital - (10 * 100 Kaufpreis + 5 Gebühr) = 8995.00 verbleibendes Cash.
         mockMvc.perform(post("/accounts/" + accountId + "/withdraw")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -196,7 +196,7 @@ class TransactionControllerTest {
                                 """.formatted(securityId)))
                 .andExpect(status().isCreated());
 
-        // 10 Stueck * 2.50 = 25.00 Cash-Zugang, verifiziert ueber eine anschliessende Auszahlung.
+        // 10 Stück * 2.50 = 25.00 Cash-Zugang, verifiziert über eine anschliessende Auszahlung.
         mockMvc.perform(post("/accounts/" + accountId + "/withdraw")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -231,7 +231,7 @@ class TransactionControllerTest {
                                 """.formatted(securityId)))
                 .andExpect(status().isCreated());
 
-        // Vor dem Split waren nur 10 Stueck vorhanden - 15 zu verkaufen waere ohne Split abgelehnt worden.
+        // Vor dem Split waren nur 10 Stück vorhanden - 15 zu verkaufen wäre ohne Split abgelehnt worden.
         mockMvc.perform(post("/accounts/" + accountId + "/transactions")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -286,7 +286,7 @@ class TransactionControllerTest {
         mockMvc.perform(get("/portfolios/" + portfolioId + "/transactions")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
-                // Die beiden Einzahlungen sind keine Transaktionen, daher nur die zwei Kaeufe.
+                // Die beiden Einzahlungen sind keine Transaktionen, daher nur die zwei Käufe.
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].transactionDate").value("2026-03-01"))
                 .andExpect(jsonPath("$[0].accountName").value("Cash B"))

@@ -74,7 +74,7 @@ class SparplanSimulationServiceImplTest {
         SparplanSimulationServiceImpl service = new SparplanSimulationServiceImpl(priceLookupService);
 
         // Gewichte summieren sich bewusst auf 90 statt 100 - normalizeToFractionsSummingToOne muss
-        // durch die tatsaechliche Summe (90) teilen, nicht durch eine hartkodierte 100.
+        // durch die tatsächliche Summe (90) teilen, nicht durch eine hartkodierte 100.
         var request = new SparplanRequestDto(
                 LocalDate.now().minusMonths(3).withDayOfMonth(1), new BigDecimal("1000"), 1,
                 Map.of("AAA", new BigDecimal("60"), "BBB", new BigDecimal("30")),
@@ -96,7 +96,7 @@ class SparplanSimulationServiceImplTest {
         lenient().when(priceLookupService.findPriceAtOrBefore(eq("AAA"), any()))
                 .thenAnswer(invocation -> {
                     LocalDate date = invocation.getArgument(1);
-                    // AAA verdoppelt sich nach dem ersten Monat -> Allokation driftet klar ueber jedes Band.
+                    // AAA verdoppelt sich nach dem ersten Monat -> Allokation driftet klar über jedes Band.
                     boolean firstMonth = date.isBefore(LocalDate.now().minusMonths(2).withDayOfMonth(1).plusMonths(1));
                     return Optional.of(firstMonth ? new BigDecimal("100") : new BigDecimal("200"));
                 });
@@ -183,7 +183,7 @@ class SparplanSimulationServiceImplTest {
         var result = service.simulate(request);
 
         assertThat(result.chartData()).isNotEmpty();
-        // ZZZ hat nie einen Preis -> nur AAA-Anteil zaehlt zum Wert.
+        // ZZZ hat nie einen Preis -> nur AAA-Anteil zählt zum Wert.
         assertThat(result.endValue()).isGreaterThan(BigDecimal.ZERO);
     }
 }

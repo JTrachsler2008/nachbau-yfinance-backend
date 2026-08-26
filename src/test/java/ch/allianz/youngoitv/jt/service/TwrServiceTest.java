@@ -11,7 +11,7 @@ class TwrServiceTest {
     private final TwrService twrService = new TwrService();
 
     /**
-     * Handrechnung (unabhaengig von der Implementierung):
+     * Handrechnung (unabhängig von der Implementierung):
      * Periode 1: (1100 - 1000 - 0) / 1000        = 0.10
      * Periode 2: (1400 - 1100 - 200) / (1100+200) = 100 / 1300 = 0.0769230769...
      * TWR = 1.10 * 1.0769230769... - 1 = 0.1846153846...

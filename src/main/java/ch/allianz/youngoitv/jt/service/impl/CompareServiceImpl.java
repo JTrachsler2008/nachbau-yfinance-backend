@@ -22,13 +22,13 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /**
- * Rein lesender Vergleich normalisierter (indexierter, Basis=100) Wertverlaeufe - Standard-Assetklassen
+ * Rein lesender Vergleich normalisierter (indexierter, Basis=100) Wertverläufe - Standard-Assetklassen
  * (YOUNGOITV-435) oder zwei frei definierte, hypothetische Portfolios. Verwendet ausschliesslich das
- * tatsaechlich angefragte Ticker-Symbol als Referenz (behebt die im Original fehlerhafte
+ * tatsächlich angefragte Ticker-Symbol als Referenz (behebt die im Original fehlerhafte
  * Label-zu-Symbol-Zuordnung, z.B. "MSCI World" -&gt; korrekt {@code URTH} statt {@code MSCI}, "SMI"
  * -&gt; korrekt {@code EWL} statt {@code SMI}) - es gibt keine serverseitige Namens-Uebersetzung, nur
- * die feste, dokumentierte Referenzliste unten. Nutzt fuer jeden Datenpunkt ausschliesslich
- * {@link PriceLookupService} (zentrale "naechstgelegener Kurs auf-oder-vor Datum"-Semantik) statt
+ * die feste, dokumentierte Referenzliste unten. Nutzt für jeden Datenpunkt ausschliesslich
+ * {@link PriceLookupService} (zentrale "nächstgelegener Kurs auf-oder-vor Datum"-Semantik) statt
  * einer eigenen Kurs-Lookup-Logik.
  */
 @Service
@@ -119,7 +119,7 @@ public class CompareServiceImpl implements CompareService {
     }
 
     /**
-     * Fehlende/nicht abrufbare Kursdaten fuer ein einzelnes Symbol an einem Datum fuehren zu einem
+     * Fehlende/nicht abrufbare Kursdaten für ein einzelnes Symbol an einem Datum führen zu einem
      * degradierten Ergebnis (dieser Datenpunkt/dieses Symbol wird ausgeschlossen), nie zu einem 500.
      */
     private BigDecimal normalizedValueAt(String symbol, Map<String, BigDecimal> baseValues, LocalDate date) {

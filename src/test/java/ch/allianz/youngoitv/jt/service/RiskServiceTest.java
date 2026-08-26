@@ -35,7 +35,7 @@ class RiskServiceTest {
 
     /**
      * Handrechnung: portfolioReturns ist exakt das Doppelte von benchmarkReturns bei jedem Punkt =>
-     * Kovarianz/Varianz(Benchmark) = 2.0 exakt, unabhaengig von den konkreten Werten.
+     * Kovarianz/Varianz(Benchmark) = 2.0 exakt, unabhängig von den konkreten Werten.
      */
     @Test
     void betaOfExactlyDoubledReturnsIsExactlyTwo() {
@@ -59,7 +59,7 @@ class RiskServiceTest {
     /**
      * Handrechnung: Werte [100,120,90,130,80]. Laufender Peak: 100,120,120,130,130.
      * Drawdowns: 0, 0, (90-120)/120=-0.25, 0, (80-130)/130=-0.384615...
-     * Groesster (negativster) Drawdown = -0.384615...
+     * Grösster (negativster) Drawdown = -0.384615...
      */
     @Test
     void maxDrawdownMatchesHandComputedValue() {
@@ -95,7 +95,7 @@ class RiskServiceTest {
     /**
      * Handrechnung: +10% und danach -10% ergeben 1.1 * 0.9 = 0.99, also einen Verlust von 1% in zwei
      * Handelstagen. Hochgerechnet auf ein Jahr: 0.99^(252/2) = 0.99^126 = 0.28186, somit -71.81%.
-     * Eine arithmetische Annualisierung wuerde hier 0% liefern, weil sich +0.10 und -0.10 aufheben.
+     * Eine arithmetische Annualisierung würde hier 0% liefern, weil sich +0.10 und -0.10 aufheben.
      */
     @Test
     void annualizedReturnChainsTheReturnsInsteadOfAddingThem() {
@@ -121,9 +121,9 @@ class RiskServiceTest {
 
     @Test
     void annualizedReturnOfATotalLossIsMinusOneHundredPercent() {
-        // Ein Tag mit -100% loescht das Kapital. Ohne Sonderfall stuende hier eine Wurzel aus 0 bzw.
-        // aus einer negativen Zahl, und ein weiterer Gewinntag danach koennte den Verlust rechnerisch
-        // wieder aufheben, was fachlich unmoeglich ist.
+        // Ein Tag mit -100% löscht das Kapital. Ohne Sonderfall stünde hier eine Wurzel aus 0 bzw.
+        // aus einer negativen Zahl, und ein weiterer Gewinntag danach könnte den Verlust rechnerisch
+        // wieder aufheben, was fachlich unmöglich ist.
         List<BigDecimal> returns = decimalsOf(-1.0, 0.05);
 
         BigDecimal result = riskService.annualizedReturn(returns);
@@ -134,7 +134,7 @@ class RiskServiceTest {
     @Test
     void sharpeRatioIsZeroWhenReturnEqualsRiskFreeRateExactly() {
         // Konstante Tagesrendite, deren annualisierter Wert exakt dem risikofreien Zins entspricht,
-        // aber Volatilitaet 0 -> Sonderfall, der explizit 0 statt einer Division durch 0 liefern muss.
+        // aber Volatilität 0 -> Sonderfall, der explizit 0 statt einer Division durch 0 liefern muss.
         List<BigDecimal> returns = decimalsOf(0.0, 0.0, 0.0, 0.0);
 
         BigDecimal result = riskService.sharpeRatio(returns);

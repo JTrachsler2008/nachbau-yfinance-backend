@@ -73,7 +73,7 @@ class CompareServiceImplTest {
         var lastPoint = result.series().get(result.series().size() - 1);
         // AAA verdoppelt sich (50->100): normalisiert 100 -> 200.
         assertThat(lastPoint.portfolioAValue()).isEqualByComparingTo("200.00");
-        // BBB faellt um 10% (200->180): normalisiert 100 -> 90.
+        // BBB fällt um 10% (200->180): normalisiert 100 -> 90.
         assertThat(lastPoint.portfolioBValue()).isEqualByComparingTo("90.00");
     }
 

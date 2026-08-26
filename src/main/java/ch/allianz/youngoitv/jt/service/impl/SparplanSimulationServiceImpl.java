@@ -23,9 +23,9 @@ import org.springframework.stereotype.Service;
 /**
  * Rein lesende Simulation eines Sparplans (periodische Einzahlungen in mehrere Positionen) mit
  * optionalem Rebalancing - periodisch (alle X Monate auf Zielgewichtung) oder toleranzbandbasiert
- * (nur bei Abweichung &gt; X Prozentpunkte). Keine Persistenz, unabhaengig von echten
- * Portfolios/Positionen (YOUNGOITV-436). Nutzt {@link PriceLookupService} fuer die "naechstgelegener
- * historischer Kurs"-Semantik, wie im fachlichen Plan fuer Sparplan-Simulationen vorgesehen.
+ * (nur bei Abweichung &gt; X Prozentpunkte). Keine Persistenz, unabhängig von echten
+ * Portfolios/Positionen (YOUNGOITV-436). Nutzt {@link PriceLookupService} für die "nächstgelegener
+ * historischer Kurs"-Semantik, wie im fachlichen Plan für Sparplan-Simulationen vorgesehen.
  */
 @Service
 public class SparplanSimulationServiceImpl implements SparplanSimulationService {

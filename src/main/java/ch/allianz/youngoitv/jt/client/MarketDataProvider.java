@@ -5,9 +5,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Zentrale Abstraktion fuer externe Kursdatenquellen (ersetzt das direkte try/catch pro Methode im
+ * Zentrale Abstraktion für externe Kursdatenquellen (ersetzt das direkte try/catch pro Methode im
  * Original, ARC-3). Alle Methoden liefern {@code Optional.empty()} statt {@code null} oder einer
- * Exception, wenn keine Daten verfuegbar sind (behebt KONV-3).
+ * Exception, wenn keine Daten verfügbar sind (behebt KONV-3).
  */
 public interface MarketDataProvider {
 

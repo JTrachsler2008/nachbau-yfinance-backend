@@ -6,11 +6,11 @@ import java.math.BigDecimal;
  * Risikokennzahlen eines einzelnen Wertpapiers im Portfolio.
  *
  * <p>Alle Prozentangaben sind fertig skaliert: 12.34 bedeutet 12.34%, nicht 1234%. Sharpe Ratio und
- * Beta sind Verhaeltniszahlen ohne Einheit. {@code beta} ist {@code null}, wenn es nicht bestimmbar
+ * Beta sind Verhältniszahlen ohne Einheit. {@code beta} ist {@code null}, wenn es nicht bestimmbar
  * ist (keine Benchmark-Daten oder eine Benchmark ohne Varianz) - bewusst kein Ersatzwert 1.0 wie im
- * Original, weil ein erfundenes Beta von einem berechneten nicht zu unterscheiden waere.</p>
+ * Original, weil ein erfundenes Beta von einem berechneten nicht zu unterscheiden wäre.</p>
  *
- * @param weight Anteil am Marktwert des Portfolios in Prozent, aus dem letzten verfuegbaren Kurs
+ * @param weight Anteil am Marktwert des Portfolios in Prozent, aus dem letzten verfügbaren Kurs
  */
 public record SecurityRiskResponseDto(
         String symbol,

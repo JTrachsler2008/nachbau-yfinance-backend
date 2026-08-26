@@ -4,8 +4,8 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * Stabile Fehlerstruktur fuer alle Fehlerantworten (fachlich und technisch). fieldErrors ist nur bei
- * Bean-Validation-Fehlern befuellt (Feldname -> Fehlermeldung), sonst null.
+ * Stabile Fehlerstruktur für alle Fehlerantworten (fachlich und technisch). fieldErrors ist nur bei
+ * Bean-Validation-Fehlern befüllt (Feldname -> Fehlermeldung), sonst null.
  */
 public record ErrorResponseDto(
         LocalDateTime timestamp,

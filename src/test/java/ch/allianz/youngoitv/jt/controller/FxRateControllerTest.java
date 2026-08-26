@@ -61,7 +61,7 @@ class FxRateControllerTest {
                                 """))
                 .andExpect(status().isCreated());
 
-        // Freitag-Kurs (2026-01-02), abgefragt fuer Sonntag 2026-01-04 (kein Kurs am Wochenende) -> juengster verfuegbarer Kurs davor.
+        // Freitag-Kurs (2026-01-02), abgefragt für Sonntag 2026-01-04 (kein Kurs am Wochenende) -> jüngster verfügbarer Kurs davor.
         mockMvc.perform(get("/fx-rates")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .param("base", "USD")

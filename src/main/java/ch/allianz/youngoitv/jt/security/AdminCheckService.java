@@ -6,8 +6,8 @@ import ch.allianz.youngoitv.jt.service.UserService;
 import org.springframework.stereotype.Service;
 
 /**
- * Rollenbasierte Autorisierungspruefung fuer Stammdaten-Endpunkte (Securities, FxRates), die anders
- * als der Owner-Check kein geladenes Domaenenobjekt benoetigen - nur die Rolle des aufrufenden Users.
+ * Rollenbasierte Autorisierungsprüfung für Stammdaten-Endpunkte (Securities, FxRates), die anders
+ * als der Owner-Check kein geladenes Domänenobjekt benötigen - nur die Rolle des aufrufenden Users.
  */
 @Service
 public class AdminCheckService {

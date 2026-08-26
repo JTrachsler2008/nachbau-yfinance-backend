@@ -24,8 +24,8 @@ class FifoLotServiceRealizedGainsTest {
     }
 
     /**
-     * Handrechnung: Kauf 10 Stueck zu 100, Verkauf 10 Stueck zu 150.
-     * Erloes = 10*150 = 1500. Kostenbasis (FIFO) = 10*100 = 1000. Gewinn = 500.
+     * Handrechnung: Kauf 10 Stück zu 100, Verkauf 10 Stück zu 150.
+     * Erlös = 10*150 = 1500. Kostenbasis (FIFO) = 10*100 = 1000. Gewinn = 500.
      */
     @Test
     void sellingAtAHigherPriceThanCostBasisProducesAPositiveGain() {
@@ -40,9 +40,9 @@ class FifoLotServiceRealizedGainsTest {
     }
 
     /**
-     * Handrechnung: Kauf 10@100 dann 10@150 (FIFO: aelteste Tranche zuerst). Verkauf von 15 Stueck
-     * zu 120: 10 Stueck aus der ersten Tranche (Kostenbasis 10*100=1000) + 5 Stueck aus der zweiten
-     * (Kostenbasis 5*150=750) = Kostenbasis 1750. Erloes = 15*120 = 1800. Gewinn = 50.
+     * Handrechnung: Kauf 10@100 dann 10@150 (FIFO: älteste Tranche zuerst). Verkauf von 15 Stück
+     * zu 120: 10 Stück aus der ersten Tranche (Kostenbasis 10*100=1000) + 5 Stück aus der zweiten
+     * (Kostenbasis 5*150=750) = Kostenbasis 1750. Erlös = 15*120 = 1800. Gewinn = 50.
      */
     @Test
     void sellAcrossTwoLotsUsesWeightedFifoCostBasis() {
@@ -58,8 +58,8 @@ class FifoLotServiceRealizedGainsTest {
     }
 
     /**
-     * Handrechnung: Kauf 10@100, Verkauf 10@150 mit Gebuehr 5 und Steuer 3.
-     * Erloes = 10*150 - 5 - 3 = 1492. Kostenbasis = 1000. Gewinn = 492 (nicht 500).
+     * Handrechnung: Kauf 10@100, Verkauf 10@150 mit Gebühr 5 und Steuer 3.
+     * Erlös = 10*150 - 5 - 3 = 1492. Kostenbasis = 1000. Gewinn = 492 (nicht 500).
      */
     @Test
     void feeAndTaxOnSellReduceTheRealizedGain() {
