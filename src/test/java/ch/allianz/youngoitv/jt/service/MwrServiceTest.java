@@ -12,7 +12,7 @@ class MwrServiceTest {
     private final MwrService mwrService = new MwrService();
 
     /**
-     * Klassisches, von Hand nachvollziehbares Beispiel: Investition von 1000 am Tag 0, Rueckfluss
+     * Klassisches, von Hand nachvollziehbares Beispiel: Investition von 1000 am Tag 0, Rückfluss
      * 1200 nach genau einem Jahr. -1000 + 1200/(1+r)^1 = 0  =>  1+r = 1.2  =>  r = 0.20 (20%).
      */
     @Test

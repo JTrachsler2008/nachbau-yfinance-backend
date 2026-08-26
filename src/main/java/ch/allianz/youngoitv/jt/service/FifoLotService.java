@@ -10,10 +10,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Eigenstaendiges Berechnungsmodell fuer offene Kauf-Tranchen, unabhaengig vom aggregierten
+ * Eigenständiges Berechnungsmodell für offene Kauf-Tranchen, unabhängig vom aggregierten
  * Position-Datensatz. Verfolgt offene Chargen strikt nach Kaufdatum (First-In-First-Out); SPLIT
  * skaliert alle offenen Tranchen-Mengen mit der Ratio, ACQUISITION/MERGER ersetzt sie (im Original
- * eine bekannte Luecke, hier behoben). Reine Funktion ueber eine uebergebene, nach Datum
+ * eine bekannte Lücke, hier behoben). Reine Funktion über eine übergebene, nach Datum
  * aufsteigend sortierte Transaktionsliste - ohne DB-Zugriff, damit ohne Fixtures testbar.
  */
 @Service
@@ -40,7 +40,7 @@ public class FifoLotService {
     }
 
     /**
-     * Wie {@link #calculateOpenLots}, verfolgt aber zusaetzlich den realisierten Gewinn/Verlust
+     * Wie {@link #calculateOpenLots}, verfolgt aber zusätzlich den realisierten Gewinn/Verlust
      * (Verkaufserlos minus FIFO-Kostenbasis der abgebauten Tranchen) je SELL-Transaktion.
      */
     public List<RealizedGain> calculateRealizedGains(List<Transaction> transactionsOrderedByDate) {
@@ -75,8 +75,8 @@ public class FifoLotService {
     }
 
     /**
-     * Baut die aeltesten Tranchen bis zur verkauften Menge ab und liefert deren FIFO-Kostenbasis
-     * (fuer {@link #calculateOpenLots} irrelevant und daher ignoriert, fuer
+     * Baut die ältesten Tranchen bis zur verkauften Menge ab und liefert deren FIFO-Kostenbasis
+     * (für {@link #calculateOpenLots} irrelevant und daher ignoriert, für
      * {@link #calculateRealizedGains} die Grundlage des realisierten Gewinns).
      */
     private BigDecimal reduceFifo(Deque<Lot> lots, BigDecimal quantityToSell) {

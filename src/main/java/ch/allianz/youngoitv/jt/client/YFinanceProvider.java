@@ -10,8 +10,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
- * Primaere Kursdatenquelle: ruft den Python-Microservice (yfinance-Wrapper) ueber einen zentral
- * konfigurierten RestClient an. Jede Methode faengt RestClientException ab und liefert
+ * Primäre Kursdatenquelle: ruft den Python-Microservice (yfinance-Wrapper) über einen zentral
+ * konfigurierten RestClient an. Jede Methode fängt RestClientException ab und liefert
  * {@code Optional.empty()} statt die Exception nach aussen durchzulassen (KONV-3).
  */
 @Component

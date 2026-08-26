@@ -1,7 +1,7 @@
 package ch.allianz.youngoitv.jt.exception;
 
 /**
- * Fachlicher Fehler bei ungueltigen Parametern fuer eine Simulation/Backtest-Anfrage
+ * Fachlicher Fehler bei ungültigen Parametern für eine Simulation/Backtest-Anfrage
  * (Sparplan-Positionen, Symbol, Menge, Kaufdatum).
  */
 public class InvalidSimulationParameterException extends RuntimeException {

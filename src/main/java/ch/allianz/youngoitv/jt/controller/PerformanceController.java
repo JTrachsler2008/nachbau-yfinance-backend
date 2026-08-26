@@ -13,15 +13,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * YOUNGOITV-433: realisierte Gewinne und Dividendenertraege ueber die gesamte Transaktionshistorie
- * eines Portfolios, konsistent FX-konvertiert in die angeforderte Anzeigewaehrung.
+ * YOUNGOITV-433: realisierte Gewinne und Dividendenerträge über die gesamte Transaktionshistorie
+ * eines Portfolios, konsistent FX-konvertiert in die angeforderte Anzeigewährung.
  *
  * <p>Bewusst noch nicht Teil dieses Tickets: Gesamtwert/TWR/MWR (YOUNGOITV-432) und Risikokennzahlen
- * (YOUNGOITV-434) benoetigen eine vollstaendige historische Neubewertung aller Positionen ueber
- * Live-Kursdaten - die Berechnungslogik dafuer ({@code TwrService}, {@code MwrService},
- * {@code RiskService}) ist bereits implementiert und unabhaengig getestet, die Zusammenstellung der
- * dafuer noetigen Wertreihen aus echten Live-Kursen ist als Folgearbeit vorgesehen, um hier keine
- * unvollstaendige/unzuverlaessige Endpunkt-Antwort auszuliefern.</p>
+ * (YOUNGOITV-434) benötigen eine vollständige historische Neubewertung aller Positionen über
+ * Live-Kursdaten - die Berechnungslogik dafür ({@code TwrService}, {@code MwrService},
+ * {@code RiskService}) ist bereits implementiert und unabhängig getestet, die Zusammenstellung der
+ * dafür nötigen Wertreihen aus echten Live-Kursen ist als Folgearbeit vorgesehen, um hier keine
+ * unvollständige/unzuverlässige Endpunkt-Antwort auszuliefern.</p>
  */
 @RestController
 @RequestMapping("/portfolios/{portfolioId}")

@@ -8,9 +8,9 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Money-Weighted Return: interner Zinsfuss (IRR) ueber alle Cashflows, geloest per
- * Bisektionsverfahren (Grenzen -0.9999 bis 50.0, 200 Iterationen). Reine Funktion ueber eine
- * uebergebene Cashflow-Liste (chronologisch sortiert), damit sie ohne DB-Fixtures testbar ist.
+ * Money-Weighted Return: interner Zinsfuss (IRR) über alle Cashflows, gelöst per
+ * Bisektionsverfahren (Grenzen -0.9999 bis 50.0, 200 Iterationen). Reine Funktion über eine
+ * übergebene Cashflow-Liste (chronologisch sortiert), damit sie ohne DB-Fixtures testbar ist.
  */
 @Service
 public class MwrService {

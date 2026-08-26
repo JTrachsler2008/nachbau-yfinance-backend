@@ -8,8 +8,8 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Summe der Dividendenertraege ueber alle DIVIDEND-Transaktionen, konsistent in eine
- * Anzeigewaehrung umgerechnet.
+ * Summe der Dividendenerträge über alle DIVIDEND-Transaktionen, konsistent in eine
+ * Anzeigewährung umgerechnet.
  */
 @Service
 public class DividendsService {

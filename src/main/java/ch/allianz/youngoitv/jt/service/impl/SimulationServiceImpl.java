@@ -24,7 +24,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Rein lesende Was-waere-wenn-Berechnungen ohne Persistenzeffekt (YOUNGOITV-437): weder
+ * Rein lesende Was-wäre-wenn-Berechnungen ohne Persistenzeffekt (YOUNGOITV-437): weder
  * {@code simulatePurchase} noch {@code backtest} legen eine Transaction/Position/Security an - beide
  * arbeiten ausschliesslich mit Live-/historischen Kursen aus {@link MarketDataProvider}.
  */
@@ -125,9 +125,9 @@ public class SimulationServiceImpl implements SimulationService {
             throw new InvalidSimulationParameterException("No historical prices available for " + upperSymbol);
         }
 
-        // Kaufpreis konsequent ueber die zentrale "naechstgelegener Kurs auf-oder-vor Datum"-Semantik
+        // Kaufpreis konsequent über die zentrale "nächstgelegener Kurs auf-oder-vor Datum"-Semantik
         // (PriceLookupService), statt den ersten Eintrag der Rohdatenreihe zu nehmen - deren erster
-        // Punkt bei einem Nicht-Handelstag der naechste Kurs NACH dem Kaufdatum waere.
+        // Punkt bei einem Nicht-Handelstag der nächste Kurs NACH dem Kaufdatum wäre.
         BigDecimal priceAtBuy = priceLookupService.findPriceAtOrBefore(upperSymbol, purchaseDate)
                 .orElse(prices.get(0).close());
         List<BacktestChartPointDto> chartData = new ArrayList<>();

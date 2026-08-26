@@ -10,9 +10,9 @@ import org.springframework.stereotype.Component;
 /**
  * Einfacher, selbst implementierter Circuit Breaker (statt Resilience4j, dessen Spring-Boot-3-
  * Integration zum Zeitpunkt der Umsetzung nicht sicher mit Spring Boot 4.0.7 kompatibel war).
- * Oeffnet nach N aufeinanderfolgenden Fehlschlaegen des primaeren Providers und schliesst nach
- * einer konfigurierbaren Wartezeit wieder (Half-Open: der naechste Aufruf nach Ablauf der Wartezeit
- * wird wieder auf den primaeren Provider geroutet).
+ * Oeffnet nach N aufeinanderfolgenden Fehlschlägen des primären Providers und schliesst nach
+ * einer konfigurierbaren Wartezeit wieder (Half-Open: der nächste Aufruf nach Ablauf der Wartezeit
+ * wird wieder auf den primären Provider geroutet).
  */
 @Component
 public class MarketDataCircuitBreaker {

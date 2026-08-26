@@ -11,8 +11,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * /auth/**, der Health-Endpunkt und die Registrierung (POST /users) sind oeffentlich, alles andere
- * verlangt ein gueltiges Bearer-Token (JwtAuthenticationFilter). Bei fehlendem/ungueltigem Token
+ * /auth/**, der Health-Endpunkt und die Registrierung (POST /users) sind öffentlich, alles andere
+ * verlangt ein gültiges Bearer-Token (JwtAuthenticationFilter). Bei fehlendem/ungültigem Token
  * bleibt der SecurityContext leer, wodurch Spring Security automatisch mit 401 antwortet, bevor der
  * Controller erreicht wird.
  */

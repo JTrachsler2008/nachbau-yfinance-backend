@@ -301,7 +301,7 @@ class PortfolioControllerTest {
     }
 
     /**
-     * B-3 (Review Tickets): verifiziert die "keine Exception-Details"-Garantie Ende-zu-Ende ueber
+     * B-3 (Review Tickets): verifiziert die "keine Exception-Details"-Garantie Ende-zu-Ende über
      * die reale Controller-/Service-/GlobalExceptionHandler-Kette, statt nur auf Unit-Ebene oder mit
      * einer Anfrage, die bereits am Security-Filter abgefangen wird.
      */

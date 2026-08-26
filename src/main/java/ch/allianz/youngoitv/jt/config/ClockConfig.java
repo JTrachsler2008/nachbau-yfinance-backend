@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Zentrale {@link Clock}-Bean, damit zeitabhaengiger Code (JWT-Ablauf, Zeitstempel) testbar bleibt,
+ * Zentrale {@link Clock}-Bean, damit zeitabhängiger Code (JWT-Ablauf, Zeitstempel) testbar bleibt,
  * statt direkt {@code new Date()}/{@code LocalDateTime.now()} zu verwenden.
  */
 @Configuration

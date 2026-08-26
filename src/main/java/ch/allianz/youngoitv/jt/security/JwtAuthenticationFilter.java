@@ -13,8 +13,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Validiert das Bearer-Token bei jedem Request. Bei gueltigem Token wird der Username als Principal
- * im SecurityContext gesetzt; bei fehlendem/ungueltigem Token bleibt der Context leer und die
+ * Validiert das Bearer-Token bei jedem Request. Bei gültigem Token wird der Username als Principal
+ * im SecurityContext gesetzt; bei fehlendem/ungültigem Token bleibt der Context leer und die
  * Autorisierungsregeln in WebSecurityConfig (anyRequest().authenticated()) liefern 401/403.
  */
 @Component

@@ -7,9 +7,9 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Realisierte Gewinne ueber SELL-Transaktionen hinweg, konsistent in eine Anzeigewaehrung
+ * Realisierte Gewinne über SELL-Transaktionen hinweg, konsistent in eine Anzeigewährung
  * umgerechnet (behebt die im Original fehlende FX-Konvertierung: dort werden realisierte Gewinne
- * unterschiedlicher Handelswaehrungen unkonvertiert aufsummiert).
+ * unterschiedlicher Handelswährungen unkonvertiert aufsummiert).
  */
 @Service
 public class RealizedGainsService {

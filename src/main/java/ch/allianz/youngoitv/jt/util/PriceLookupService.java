@@ -10,9 +10,9 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 /**
- * Zentrale "naechstgelegener historischer Kurs"-Utility, ersetzt die leicht abweichenden
+ * Zentrale "nächstgelegener historischer Kurs"-Utility, ersetzt die leicht abweichenden
  * Implementierungen aus mehreren Controllern des Originals. Liefert den Kurs des exakten Tages,
- * falls vorhanden, sonst den juengsten verfuegbaren Kurs davor.
+ * falls vorhanden, sonst den jüngsten verfügbaren Kurs davor.
  */
 @Service
 public class PriceLookupService {

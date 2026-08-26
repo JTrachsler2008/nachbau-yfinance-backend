@@ -6,7 +6,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Time-Weighted Return: Verkettung cashflow-bereinigter Teilperiodenrenditen. Reine Funktion ueber
+ * Time-Weighted Return: Verkettung cashflow-bereinigter Teilperiodenrenditen. Reine Funktion über
  * eine Liste von Bewertungsperioden, damit sie ohne DB-Fixtures und ohne Live-Kursdaten testbar ist
  * (die Zusammenstellung der Perioden aus der echten Transaktionshistorie erfolgt in der aufrufenden
  * Service-Schicht).

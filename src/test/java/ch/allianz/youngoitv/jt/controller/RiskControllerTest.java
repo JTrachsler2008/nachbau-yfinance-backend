@@ -37,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Die Kursreihen kommen aus einem Testdouble mit abwechselnden Faktoren, damit die Kennzahlen von Hand
  * nachrechenbar sind: bei einem Wechsel von +2% und -2% ist der Mittelwert exakt 0 und die
- * Tagesstandardabweichung exakt 0.02, unabhaengig von der Laenge der Reihe.
+ * Tagesstandardabweichung exakt 0.02, unabhängig von der Länge der Reihe.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -45,7 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class RiskControllerTest {
 
-    /** 25 Kurse ergeben 24 Tagesrenditen und liegen damit ueber der Untergrenze von 20. */
+    /** 25 Kurse ergeben 24 Tagesrenditen und liegen damit über der Untergrenze von 20. */
     private static final int HANDELSTAGE = 25;
 
     @Autowired
@@ -122,9 +122,9 @@ class RiskControllerTest {
 
     /**
      * Kursreihe, die auf dem letzten Tag des Abrufzeitraums endet (gestern) und {@code tage} Tage
-     * zurueckreicht, mit den Faktoren der Reihe nach im Kreis. Kalendertage und keine Handelstage: der
-     * Dienst schneidet nach Datum, ein uebersprungenes Wochenende wuerde die Handrechnung nur
-     * unuebersichtlicher machen.
+     * zurückreicht, mit den Faktoren der Reihe nach im Kreis. Kalendertage und keine Handelstage: der
+     * Dienst schneidet nach Datum, ein übersprungenes Wochenende würde die Handrechnung nur
+     * unübersichtlicher machen.
      */
     private static List<HistoricalPrice> reihe(String startkurs, int tage, String... faktoren) {
         List<HistoricalPrice> prices = new ArrayList<>();
@@ -152,12 +152,12 @@ class RiskControllerTest {
     }
 
     /**
-     * Handrechnung fuer AAA (+2%/-2% im Wechsel) gegen SPY (+1%/-1% im Wechsel), beide 24 Renditen:
+     * Handrechnung für AAA (+2%/-2% im Wechsel) gegen SPY (+1%/-1% im Wechsel), beide 24 Renditen:
      * Mittelwert je 0, Tagesstandardabweichung 0.02 bzw. 0.01, annualisiert 0.02*sqrt(252) = 31.75%.
      * Sharpe (0 - 0.04)/0.317490 = -0.13. AAA ist punktweise genau das Doppelte von SPY, also Beta 2.00.
      * VaR 95%: bei 24 Werten ist rank = ceil(1.2) = 2, also der zweitschlechteste Wert = -2.00%.
      * Verkettet: (1.02*0.98)^12 = 0.9996^12, auf ein Jahr 0.9996^126 = 0.95084, somit -4.92%.
-     * Die Benchmark selbst: 0.01*sqrt(252) = 15.87% Volatilitaet und 0.9999^126 = 0.98748, also -1.25%.
+     * Die Benchmark selbst: 0.01*sqrt(252) = 15.87% Volatilität und 0.9999^126 = 0.98748, also -1.25%.
      */
     @Test
     void returnsHandComputedMetricsForASinglePosition() throws Exception {
@@ -192,7 +192,7 @@ class RiskControllerTest {
 
     /**
      * Bei einem einzigen Wertpapier ist der Diversifikationsgewinn keine sinnvolle Frage: die
-     * gewichtete Summe der Einzelvolatilitaeten ist die Portfoliovolatilitaet, die Differenz waere
+     * gewichtete Summe der Einzelvolatilitäten ist die Portfoliovolatilität, die Differenz wäre
      * immer 0 und sahe aus wie ein Befund.
      */
     @Test
@@ -208,10 +208,10 @@ class RiskControllerTest {
     }
 
     /**
-     * Zwei gleich grosse Bestaende mit gegenlaeufigen Kursen: die gewichtete Tagesrendite ist an jedem
-     * Tag 0.5*(+1%) + 0.5*(-1%) = 0, die Volatilitaet des Portfolios also 0, waehrend jeder Titel
+     * Zwei gleich grosse Bestände mit gegenläufigen Kursen: die gewichtete Tagesrendite ist an jedem
+     * Tag 0.5*(+1%) + 0.5*(-1%) = 0, die Volatilität des Portfolios also 0, während jeder Titel
      * einzeln auf 0.01*sqrt(252) = 15.87% kommt. Der Diversifikationsgewinn ist damit die vollen
-     * 15.87 Prozentpunkte. Die Gewichte sind exakt gleich, weil beide Reihen zwoelfmal 0.99*1.01
+     * 15.87 Prozentpunkte. Die Gewichte sind exakt gleich, weil beide Reihen zwölfmal 0.99*1.01
      * durchlaufen und deshalb auf demselben Endkurs landen.
      */
     @Test
@@ -239,9 +239,9 @@ class RiskControllerTest {
     }
 
     /**
-     * Reihen unterschiedlicher Laenge werden ueber die gemeinsamen Handelstage ausgerichtet, nicht vom
-     * Ende her durchgezaehlt. BBB liefert nur die letzten 22 Tage, also 21 Renditen - genau die bleiben
-     * uebrig, obwohl AAA 24 haette.
+     * Reihen unterschiedlicher Länge werden über die gemeinsamen Handelstage ausgerichtet, nicht vom
+     * Ende her durchgezählt. BBB liefert nur die letzten 22 Tage, also 21 Renditen - genau die bleiben
+     * übrig, obwohl AAA 24 hätte.
      */
     @Test
     void alignsSeriesOfDifferentLengthOnTheirCommonTradingDays() throws Exception {
@@ -320,8 +320,8 @@ class RiskControllerTest {
 
     /**
      * Fehlt die Benchmark, bleibt das Beta leer und die Benchmark steht mit ihrem Grund in
-     * {@code excluded}. Ohne diesen Eintrag zeigte die Oberflaeche ein leeres Beta, ohne sagen zu
-     * koennen, dass nicht das Portfolio, sondern die Referenz das Problem ist.
+     * {@code excluded}. Ohne diesen Eintrag zeigte die Oberfläche ein leeres Beta, ohne sagen zu
+     * können, dass nicht das Portfolio, sondern die Referenz das Problem ist.
      */
     @Test
     void leavesBetaEmptyAndNamesTheBenchmarkWhenItHasNoData() throws Exception {
@@ -338,7 +338,7 @@ class RiskControllerTest {
                 .andExpect(jsonPath("$.beta").value(nullValue()))
                 .andExpect(jsonPath("$.securities[0].beta").value(nullValue()))
                 // Auch die Kennzahlen der Benchmark bleiben leer statt auf 0 zu fallen: eine
-                // Referenzvolatilitaet von 0% waere als Vergleichsmass schlimmer als keine.
+                // Referenzvolatilität von 0% wäre als Vergleichsmass schlimmer als keine.
                 .andExpect(jsonPath("$.benchmarkVolatility").value(nullValue()))
                 .andExpect(jsonPath("$.benchmarkReturn").value(nullValue()))
                 .andExpect(jsonPath("$.excluded[?(@.symbol == 'SPY')].reason").value("NO_PRICE_HISTORY"));
@@ -346,7 +346,7 @@ class RiskControllerTest {
 
     /**
      * Eine Benchmark ohne Bewegung hat keine Varianz, das Beta ist dann nicht definiert. Das Original
-     * lieferte hier 1.0, also den Wert "laeuft wie der Markt", der von einem gerechneten Beta nicht zu
+     * lieferte hier 1.0, also den Wert "läuft wie der Markt", der von einem gerechneten Beta nicht zu
      * unterscheiden war.
      */
     @Test

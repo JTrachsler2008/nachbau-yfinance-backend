@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * YOUNGOITV-434: Risikokennzahlen eines Portfolios. Die Eigentumspruefung erledigt
- * {@code PortfolioRiskService} ueber {@code PortfolioService.getOwnedOrThrow}, deshalb steht sie hier
+ * YOUNGOITV-434: Risikokennzahlen eines Portfolios. Die Eigentumsprüfung erledigt
+ * {@code PortfolioRiskService} über {@code PortfolioService.getOwnedOrThrow}, deshalb steht sie hier
  * nicht doppelt.
  *
  * <p>Der Zeitraum ist in Kalendertagen angegeben und nicht in Handelstagen, weil er einen

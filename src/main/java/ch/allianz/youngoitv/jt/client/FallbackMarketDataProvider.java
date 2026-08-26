@@ -7,9 +7,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 /**
- * Kombiniert YFinanceProvider (primaer) und AlphaVantageProvider (sekundaer) ueber eine
+ * Kombiniert YFinanceProvider (primär) und AlphaVantageProvider (sekundär) über eine
  * deklarative Fallback-Kette mit Circuit Breaker: solange der Circuit geschlossen ist, wird der
- * primaere Provider versucht; bei wiederholten Fehlschlaegen oeffnet der Circuit und nachfolgende
+ * primäre Provider versucht; bei wiederholten Fehlschlägen öffnet der Circuit und nachfolgende
  * Aufrufe wechseln sofort auf den Fallback, ohne erneut auf ein Timeout zu warten.
  */
 @Primary

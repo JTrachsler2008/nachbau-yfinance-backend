@@ -5,9 +5,9 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Risikokennzahlen auf Basis taeglicher Renditen bzw. einer Wertreihe. Reine Funktionen ueber
- * uebergebene Reihen (keine eigenen Kursabrufe), damit sie mit deterministischen Testdaten statt
- * Live-Kursen verifiziert werden koennen. Annualisierung mit dem Faktor 252 Handelstage, Sharpe
+ * Risikokennzahlen auf Basis täglicher Renditen bzw. einer Wertreihe. Reine Funktionen über
+ * übergebene Reihen (keine eigenen Kursabrufe), damit sie mit deterministischen Testdaten statt
+ * Live-Kursen verifiziert werden können. Annualisierung mit dem Faktor 252 Handelstage, Sharpe
  * Ratio mit konfigurierbarem risikofreiem Zins (Default 4% p.a. wie im Original).
  */
 @Service
@@ -26,12 +26,12 @@ public class RiskService {
      * verkettet und das Ergebnis auf 252 Handelstage hochgerechnet, es ist also nicht das 252-fache
      * des Mittelwerts: ein Plus von 10% und danach ein Minus von 10% ergeben zusammen -1% und nicht 0%.
      *
-     * <p>Faellt der verkettete Wert auf 0 oder darunter, ist das Kapital aufgebraucht; dann gilt
-     * -1.0 (-100%), weil eine Wurzel aus einer negativen Zahl keine Rendite ergaebe.</p>
+     * <p>Fällt der verkettete Wert auf 0 oder darunter, ist das Kapital aufgebraucht; dann gilt
+     * -1.0 (-100%), weil eine Wurzel aus einer negativen Zahl keine Rendite ergäbe.</p>
      *
      * <p>Bei sehr kurzen Reihen ist die Hochrechnung mathematisch korrekt, aber wenig belastbar: aus
      * zwanzig Tagen wird mit dem Exponenten 12.6 hochgerechnet. Wer die Reihe zusammenstellt, sollte
-     * daher eine Mindestlaenge verlangen.</p>
+     * daher eine Mindestlänge verlangen.</p>
      */
     public BigDecimal annualizedReturn(List<BigDecimal> dailyReturns) {
         if (dailyReturns.isEmpty()) {
@@ -63,7 +63,7 @@ public class RiskService {
 
     public BigDecimal beta(List<BigDecimal> portfolioReturns, List<BigDecimal> benchmarkReturns) {
         if (portfolioReturns.size() != benchmarkReturns.size() || portfolioReturns.isEmpty()) {
-            throw new IllegalArgumentException("Portfolio- und Benchmark-Renditen muessen gleich lang und nicht leer sein");
+            throw new IllegalArgumentException("Portfolio- und Benchmark-Renditen müssen gleich lang und nicht leer sein");
         }
         double benchmarkMean = mean(benchmarkReturns);
         double portfolioMean = mean(portfolioReturns);
@@ -82,8 +82,8 @@ public class RiskService {
     }
 
     /**
-     * Grösster Peak-to-Trough-Verlust einer Wertreihe, als negativer Prozentwert (z.B. -0.25 fuer
-     * einen Verlust von 25% gegenueber dem bisherigen Hoechststand).
+     * Grösster Peak-to-Trough-Verlust einer Wertreihe, als negativer Prozentwert (z.B. -0.25 für
+     * einen Verlust von 25% gegenüber dem bisherigen Höchststand).
      */
     public BigDecimal maxDrawdown(List<BigDecimal> valueSeries) {
         if (valueSeries.isEmpty()) {
@@ -101,7 +101,7 @@ public class RiskService {
     }
 
     /**
-     * Historischer VaR 95%: das 5%-Perzentil der taeglichen Renditen (Nearest-Rank-Verfahren).
+     * Historischer VaR 95%: das 5%-Perzentil der täglichen Renditen (Nearest-Rank-Verfahren).
      */
     public BigDecimal valueAtRisk95(List<BigDecimal> dailyReturns) {
         if (dailyReturns.isEmpty()) {

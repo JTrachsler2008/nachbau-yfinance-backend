@@ -11,10 +11,10 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
- * Sekundaere, kostenfreie Kursdatenquelle. Deckt nur Quote/Historical ab (kein Aequivalent im
- * Original fuer Info/Snapshot/News/Earnings) - fuer diese Methoden liefert diese Implementierung
+ * Sekundäre, kostenfreie Kursdatenquelle. Deckt nur Quote/Historical ab (kein Aequivalent im
+ * Original für Info/Snapshot/News/Earnings) - für diese Methoden liefert diese Implementierung
  * konsistent {@code Optional.empty()} statt eines Fehlschlags (behebt die inkonsistente
- * Verfuegbarkeit aus ARC-3).
+ * Verfügbarkeit aus ARC-3).
  */
 @Component
 public class AlphaVantageProvider implements MarketDataProvider {

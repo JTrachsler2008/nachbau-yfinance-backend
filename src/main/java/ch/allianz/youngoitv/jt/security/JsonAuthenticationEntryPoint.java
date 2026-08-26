@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Schreibt bei fehlendem/ungueltigem Token dieselbe ErrorResponseDto-Struktur wie der
+ * Schreibt bei fehlendem/ungültigem Token dieselbe ErrorResponseDto-Struktur wie der
  * GlobalExceptionHandler, statt eines leeren 401-Bodys (behebt Review-Befund M-8).
  */
 @Component

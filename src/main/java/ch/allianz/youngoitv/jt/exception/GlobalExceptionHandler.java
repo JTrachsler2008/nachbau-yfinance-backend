@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Zentraler Handler fuer alle Exceptions. Fachliche Exceptions werden mit ihrem definierten HTTP-Status
+ * Zentraler Handler für alle Exceptions. Fachliche Exceptions werden mit ihrem definierten HTTP-Status
  * und einer sprechenden Message beantwortet; alles Unbekannte (technische Fehler) wird als 500 OHNE
- * Exception-Details an den Client geliefert, aber vollstaendig mit Korrelations-ID serverseitig geloggt
+ * Exception-Details an den Client geliefert, aber vollständig mit Korrelations-ID serverseitig geloggt
  * (behebt SEC-5). Kein catch-Block dieses Handlers verschluckt einen Fehler stillschweigend (KONV-6).
  */
 @RestControllerAdvice

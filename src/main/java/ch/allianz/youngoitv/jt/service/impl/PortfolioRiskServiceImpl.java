@@ -31,33 +31,33 @@ import org.springframework.stereotype.Service;
 /**
  * Zusammenstellung der Renditereihen eines Portfolios aus Kurshistorien und Auswertung durch
  * {@link RiskService}. Damit wird die in {@code PerformanceController} als Folgearbeit vermerkte
- * Luecke geschlossen: die Kennzahlen aus YOUNGOITV-434 hatten bisher keinen Aufrufer.
+ * Lücke geschlossen: die Kennzahlen aus YOUNGOITV-434 hatten bisher keinen Aufrufer.
  *
- * <p>Wie im Original wird die <em>heutige</em> Zusammensetzung des Portfolios ueber den Zeitraum
- * zurueckprojiziert. Die Kennzahlen beantworten also "wie riskant ist der heutige Bestand, gemessen
+ * <p>Wie im Original wird die <em>heutige</em> Zusammensetzung des Portfolios über den Zeitraum
+ * zurückprojiziert. Die Kennzahlen beantworten also "wie riskant ist der heutige Bestand, gemessen
  * an seinem Verhalten im letzten Jahr", nicht "wie riskant war das Portfolio damals". Der Unterschied
- * ist erheblich, sobald im Zeitraum umgeschichtet wurde, und laesst sich ohne eine vollstaendige
+ * ist erheblich, sobald im Zeitraum umgeschichtet wurde, und lässt sich ohne eine vollständige
  * historische Neubewertung aus der Transaktionshistorie nicht beheben.</p>
  *
- * <p>Zwei bewusste Abweichungen vom Original. Erstens werden die Reihen mehrerer Wertpapiere ueber die
- * <em>Schnittmenge der Handelstage</em> ausgerichtet und nicht ueber die Position vom Ende her: bei
- * Titeln von Boersen mit verschiedenen Feiertagen paart die Ausrichtung ueber den Index sonst Tage,
+ * <p>Zwei bewusste Abweichungen vom Original. Erstens werden die Reihen mehrerer Wertpapiere über die
+ * <em>Schnittmenge der Handelstage</em> ausgerichtet und nicht über die Position vom Ende her: bei
+ * Titeln von Börsen mit verschiedenen Feiertagen paart die Ausrichtung über den Index sonst Tage,
  * die Wochen auseinanderliegen. Zweitens verschwindet ein Wertpapier ohne verwertbare Kursdaten nicht
- * still, sondern erscheint in {@code excluded} - eine Volatilitaet ueber zwei von fuenf Titeln sah im
- * Original aus wie eine ueber das ganze Portfolio.</p>
+ * still, sondern erscheint in {@code excluded} - eine Volatilität über zwei von fünf Titeln sah im
+ * Original aus wie eine über das ganze Portfolio.</p>
  *
- * <p>Grenze der Methode: gerechnet wird mit Kursrenditen in der jeweiligen Handelswaehrung. Ein
- * CHF-Portfolio mit US-Titeln traegt damit ein Waehrungsrisiko, das hier nicht abgebildet ist. Eine
- * taegliche FX-Umrechnung wuerde daran nichts aendern, weil {@code fx_rates} eine manuell gepflegte
- * Tabelle mit einzelnen Stichtagen ist: der fortgeschriebene letzte bekannte Kurs haette eine
- * Wechselkurs-Volatilitaet von 0 und damit nur den Anschein von Genauigkeit. Die Wechselkurse gehen
- * deshalb nur in die Gewichte ein, wo sie tatsaechlich gebraucht werden.</p>
+ * <p>Grenze der Methode: gerechnet wird mit Kursrenditen in der jeweiligen Handelswährung. Ein
+ * CHF-Portfolio mit US-Titeln trägt damit ein Währungsrisiko, das hier nicht abgebildet ist. Eine
+ * tägliche FX-Umrechnung würde daran nichts ändern, weil {@code fx_rates} eine manuell gepflegte
+ * Tabelle mit einzelnen Stichtagen ist: der fortgeschriebene letzte bekannte Kurs hätte eine
+ * Wechselkurs-Volatilität von 0 und damit nur den Anschein von Genauigkeit. Die Wechselkurse gehen
+ * deshalb nur in die Gewichte ein, wo sie tatsächlich gebraucht werden.</p>
  */
 @Service
 public class PortfolioRiskServiceImpl implements PortfolioRiskService {
 
     /**
-     * Untergrenze fuer eine Kennzahl aus Tagesrenditen. Weniger als 20 Handelstage ergeben zwar eine
+     * Untergrenze für eine Kennzahl aus Tagesrenditen. Weniger als 20 Handelstage ergeben zwar eine
      * rechenbare Zahl, aber der Faktor sqrt(252) macht daraus eine Jahresaussage aus knapp einem Monat.
      */
     static final int MIN_OBSERVATIONS = 20;
@@ -68,8 +68,8 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
 
     /**
      * Risikofreier Zins wie im Original (4% p.a.). Wird explizit an
-     * {@link RiskService#sharpeRatio(List, BigDecimal)} uebergeben und im Ergebnis mitgeliefert, damit
-     * die ausgewiesene Annahme und die gerechnete nicht auseinanderlaufen koennen.
+     * {@link RiskService#sharpeRatio(List, BigDecimal)} übergeben und im Ergebnis mitgeliefert, damit
+     * die ausgewiesene Annahme und die gerechnete nicht auseinanderlaufen können.
      */
     private static final BigDecimal RISK_FREE_RATE = new BigDecimal("0.04");
 
@@ -124,8 +124,8 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
         }
 
         NavigableMap<LocalDate, BigDecimal> benchmarkReturns = benchmarkReturns(benchmarkSymbol, from, to, excluded);
-        // Rendite und Volatilitaet der Benchmark gehoeren ins Ergebnis, weil eine Volatilitaet von 18%
-        // je nach Marktphase hoch oder niedrig ist. Ohne den Bezugspunkt muesste die Oberflaeche eine
+        // Rendite und Volatilität der Benchmark gehören ins Ergebnis, weil eine Volatilität von 18%
+        // je nach Marktphase hoch oder niedrig ist. Ohne den Bezugspunkt müsste die Oberfläche eine
         // Einordnung behaupten, die in der Zahl nicht steckt.
         List<BigDecimal> benchmarkSeries =
                 benchmarkReturns == null ? List.of() : List.copyOf(benchmarkReturns.values());
@@ -186,10 +186,10 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
     }
 
     /**
-     * Bestaende zu Symbolen zusammengefasst, weil dasselbe Wertpapier auf mehreren Konten desselben
-     * Portfolios liegen kann und zweimal derselbe Kursverlauf zwei Eintraege mit identischen Kennzahlen
-     * ergaebe. Vollstaendig verkaufte Positionen (Menge 0) bleiben weg: sie tragen kein Risiko und
-     * gehoeren auch nicht in {@code excluded}, weil an ihnen nichts fehlt.
+     * Bestände zu Symbolen zusammengefasst, weil dasselbe Wertpapier auf mehreren Konten desselben
+     * Portfolios liegen kann und zweimal derselbe Kursverlauf zwei Einträge mit identischen Kennzahlen
+     * ergäbe. Vollständig verkaufte Positionen (Menge 0) bleiben weg: sie tragen kein Risiko und
+     * gehören auch nicht in {@code excluded}, weil an ihnen nichts fehlt.
      */
     private List<Holding> holdings(Long portfolioId, String username) {
         Map<String, Holding> bySymbol = new LinkedHashMap<>();
@@ -211,7 +211,7 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
     /**
      * Kursverlauf eines Symbols als sortierte Reihe. Nicht positive Kurse fliegen raus, weil eine 0
      * eine Division bei der Renditeberechnung sprengen und ein negativer Kurs eine Fehlmeldung der
-     * Quelle waere; ein Datum bleibt nur mit dem letzten dafuer gelieferten Kurs stehen.
+     * Quelle wäre; ein Datum bleibt nur mit dem letzten dafür gelieferten Kurs stehen.
      */
     private NavigableMap<LocalDate, BigDecimal> closes(String symbol, LocalDate from, LocalDate to) {
         Optional<List<HistoricalPrice>> history = marketDataProvider.getHistorical(symbol, from, to, Interval.DAILY);
@@ -244,7 +244,7 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
 
     /**
      * Renditereihe der Benchmark oder {@code null}, wenn sie fehlt. Im zweiten Fall steht die
-     * Benchmark selbst in {@code excluded}: sonst zeigte die Oberflaeche ein leeres Beta ohne Grund,
+     * Benchmark selbst in {@code excluded}: sonst zeigte die Oberfläche ein leeres Beta ohne Grund,
      * und ein fehlender Referenzkurs sieht dort aus wie ein nicht berechenbares Beta des Portfolios.
      */
     private NavigableMap<LocalDate, BigDecimal> benchmarkReturns(
@@ -262,9 +262,9 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
     }
 
     /**
-     * Marktwert der Position in der Waehrung des Portfolios, aus dem letzten vorliegenden Kurs.
+     * Marktwert der Position in der Währung des Portfolios, aus dem letzten vorliegenden Kurs.
      * {@code null} heisst "kein Wechselkurs vorhanden" - dann ist das Gewicht unbekannt, und ein
-     * geschaetztes Gewicht (im Original der Faktor 1.0) waere schlimmer als eine sichtbare Luecke.
+     * geschätztes Gewicht (im Original der Faktor 1.0) wäre schlimmer als eine sichtbare Lücke.
      */
     private BigDecimal marketValue(
             Holding holding, NavigableMap<LocalDate, BigDecimal> closes, String portfolioCurrency) {
@@ -286,9 +286,9 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
     }
 
     /**
-     * Tagesrenditen des Portfolios als mit den Marktwerten gewichtete Summe der Einzelrenditen, ueber
-     * die Schnittmenge der Handelstage aller Wertpapiere. Ein Tag, an dem eine der Boersen zu war,
-     * faellt damit fuer alle weg - das ist der Preis dafuer, keine Renditen aus verschiedenen Tagen
+     * Tagesrenditen des Portfolios als mit den Marktwerten gewichtete Summe der Einzelrenditen, über
+     * die Schnittmenge der Handelstage aller Wertpapiere. Ein Tag, an dem eine der Börsen zu war,
+     * fällt damit für alle weg - das ist der Preis dafür, keine Renditen aus verschiedenen Tagen
      * miteinander zu verrechnen. Leer, wenn es keine gemeinsamen Tage oder keinen Gesamtwert gibt.
      *
      * <p>Nach Datum und nicht als reine Liste, weil das Beta die Reihe noch einmal auf die Handelstage
@@ -322,10 +322,10 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
     }
 
     /**
-     * Beta ueber die gemeinsamen Handelstage von Reihe und Benchmark. {@code null}, wenn die Benchmark
-     * fehlt, zu wenige Tage uebereinstimmen oder die Benchmark im Zeitraum keine Varianz hat - kein
+     * Beta über die gemeinsamen Handelstage von Reihe und Benchmark. {@code null}, wenn die Benchmark
+     * fehlt, zu wenige Tage übereinstimmen oder die Benchmark im Zeitraum keine Varianz hat - kein
      * Ersatzwert 1.0 wie im Original, weil ein erfundenes Beta von einem berechneten nicht zu
-     * unterscheiden waere.
+     * unterscheiden wäre.
      */
     private BigDecimal beta(
             NavigableMap<LocalDate, BigDecimal> returns, NavigableMap<LocalDate, BigDecimal> benchmarkReturns) {
@@ -352,8 +352,8 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
     }
 
     /**
-     * Diversifikationsgewinn in Prozentpunkten: um wie viel die Volatilitaet des Portfolios unter der
-     * gewichteten Summe der Einzelvolatilitaeten liegt. Bei einem einzelnen Wertpapier ist die Frage
+     * Diversifikationsgewinn in Prozentpunkten: um wie viel die Volatilität des Portfolios unter der
+     * gewichteten Summe der Einzelvolatilitäten liegt. Bei einem einzelnen Wertpapier ist die Frage
      * nicht gestellt, deshalb {@code null} und nicht 0.
      */
     private BigDecimal diversificationBenefit(
@@ -373,7 +373,7 @@ public class PortfolioRiskServiceImpl implements PortfolioRiskService {
 
     /**
      * Wertreihe mit Basis 100 aus verketteten Tagesrenditen, damit
-     * {@link RiskService#maxDrawdown(List)} auch fuer das Portfolio eine Reihe bekommt, obwohl es
+     * {@link RiskService#maxDrawdown(List)} auch für das Portfolio eine Reihe bekommt, obwohl es
      * keinen eigenen Kursverlauf hat.
      */
     private List<BigDecimal> indexSeries(List<BigDecimal> returns) {
