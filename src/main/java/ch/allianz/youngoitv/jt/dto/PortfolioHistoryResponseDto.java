@@ -14,9 +14,15 @@ import java.util.List;
  *
  * @param from angefragter Beginn des Zeitraums
  * @param to angefragtes Ende
- * @param seriesFrom erster Tag, an dem sich das Portfolio vollständig bewerten liess, und damit der
- *     Startpunkt von {@code index}. Kann nach {@code from} liegen, etwa wenn ein gehaltenes
- *     Wertpapier erst später an die Börse kam. {@code null}, wenn kein einziger Tag bewertbar war
+ * @param seriesFrom erster Tag der Reihe und damit der Startpunkt von {@code index}. Kann nach
+ *     {@code from} liegen, wenn im Depot zu Beginn des Zeitraums noch nichts lag oder wenn ein
+ *     gehaltenes Wertpapier erst später bewertbar war. {@code null}, wenn kein einziger Tag
+ *     bewertbar war
+ * @param seriesFromReason warum die Reihe später beginnt: {@code NOT_INVESTED}, wenn das Depot bis
+ *     dahin leer war, {@code MISSING_DATA}, wenn Kurse oder Wechselkurse fehlten. {@code null}, wenn
+ *     sie am angefragten ersten Tag beginnt. Die beiden Fälle stehen hier getrennt, weil sie
+ *     verschiedene Auskünfte sind: das eine ist die normale Vorgeschichte eines jungen Depots, das
+ *     andere eine Lücke in den Daten
  * @param timeWeightedReturn zeitgewichtete Rendite über {@code seriesFrom} bis {@code to}, in
  *     Prozent. {@code null}, wenn die Kette eine Lücke hat oder im Zeitraum nie Kapital investiert
  *     war - eine 0 wäre in beiden Fällen eine Aussage, die die Daten nicht stützen
@@ -33,6 +39,7 @@ public record PortfolioHistoryResponseDto(
         LocalDate from,
         LocalDate to,
         LocalDate seriesFrom,
+        String seriesFromReason,
         String benchmarkSymbol,
         BigDecimal timeWeightedReturn,
         BigDecimal benchmarkReturn,

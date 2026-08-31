@@ -119,6 +119,7 @@ class PortfolioHistoryServiceImplTest {
 
         assertThat(result.currency()).isEqualTo("CHF");
         assertThat(result.seriesFrom()).isEqualTo(FROM);
+        assertThat(result.seriesFromReason()).isNull();
         assertThat(result.points())
                 .extracting(PortfolioHistoryPointDto::date, PortfolioHistoryPointDto::value)
                 .containsExactly(
@@ -260,6 +261,7 @@ class PortfolioHistoryServiceImplTest {
         PortfolioHistoryResponseDto result = history();
 
         assertThat(result.seriesFrom()).isEqualTo(MAR);
+        assertThat(result.seriesFromReason()).isEqualTo(PortfolioHistoryServiceImpl.MISSING_DATA);
         assertThat(result.points())
                 .extracting(PortfolioHistoryPointDto::date, PortfolioHistoryPointDto::value)
                 .containsExactly(tuple(MAR, new BigDecimal("1500.00")), tuple(TO, new BigDecimal("1650.00")));
@@ -284,6 +286,7 @@ class PortfolioHistoryServiceImplTest {
         PortfolioHistoryResponseDto result = history();
 
         assertThat(result.seriesFrom()).isEqualTo(MAR);
+        assertThat(result.seriesFromReason()).isEqualTo(PortfolioHistoryServiceImpl.MISSING_DATA);
         assertThat(result.excluded())
                 .extracting("symbol", "reason")
                 .containsExactly(tuple("AAA", PortfolioHistoryServiceImpl.NO_FX_RATE));
@@ -303,6 +306,10 @@ class PortfolioHistoryServiceImplTest {
         PortfolioHistoryResponseDto result = history();
 
         assertThat(result.timeWeightedReturn()).isNull();
+        // Nie Bestand heisst nicht "später anfangen": ohne einen ersten Kauf gibt es keinen Tag, auf
+        // den zu kürzen wäre, und die Linie auf 0 über den ganzen Zeitraum ist die richtige Auskunft.
+        assertThat(result.seriesFrom()).isEqualTo(FROM);
+        assertThat(result.seriesFromReason()).isNull();
         assertThat(result.points()).isNotEmpty();
         assertThat(result.points()).allSatisfy(point -> {
             assertThat(point.value()).isEqualByComparingTo("0.00");
@@ -310,6 +317,86 @@ class PortfolioHistoryServiceImplTest {
         });
         // Die Vergleichslinie bleibt: sie hängt nicht am Bestand.
         assertThat(result.benchmarkReturn()).isEqualByComparingTo("10.00");
+    }
+
+    /**
+     * Ein Depot, dessen erster Kauf mitten im Zeitraum liegt, beginnt nicht am angefragten ersten Tag.
+     *
+     * <p>Der Prüfstein ist die Benchmark: sie wird am ersten Tag der Reihe auf 100 normiert. Liefe die
+     * Reihe ab Januar, hätte die Vergleichslinie zwei Monate Vorlauf (400 auf 484, also 21 %) gegen
+     * eine TWR, die erst im März beginnt - zwei Zahlen, die nebeneinander stehen und nicht vergleichbar
+     * sind. Ab Februar gemessen sind es 15.24 % gegen 10 %, und das ist derselbe Zeitraum.</p>
+     */
+    @Test
+    void aPortfolioBuyingLaterStartsTheSeriesShortlyBeforeItsFirstHolding() {
+        givenPrices("AAA", 100, 100, 100, 110);
+        givenPrices(BENCHMARK, 400, 420, 440, 484);
+        buy("AAA", "CHF", MAR, 10, 100);
+
+        PortfolioHistoryResponseDto result = history();
+
+        assertThat(result.seriesFrom()).isEqualTo(FEB);
+        assertThat(result.seriesFromReason()).isEqualTo(PortfolioHistoryServiceImpl.NOT_INVESTED);
+        assertThat(result.points())
+                .extracting(PortfolioHistoryPointDto::date, PortfolioHistoryPointDto::benchmarkIndex)
+                .containsExactly(
+                        tuple(FEB, new BigDecimal("100.0000")),
+                        tuple(MAR, new BigDecimal("104.7619")),
+                        tuple(TO, new BigDecimal("115.2381")));
+        assertThat(result.benchmarkReturn()).isEqualByComparingTo("15.24");
+        assertThat(result.timeWeightedReturn()).isEqualByComparingTo("10.00");
+        assertThat(result.excluded()).isEmpty();
+    }
+
+    /**
+     * Der eine Tag ohne Bestand bleibt stehen, und das ist der Zweck: nur so liegt der Cashflow des
+     * ersten Kaufs innerhalb der Kette, und die erste Teilperiode misst vom bezahlten Preis (120) zum
+     * Schlusskurs des Kauftags (100), also -16.67 %. Begänne die Reihe beim Bestand selbst, fiele diese
+     * Periode heraus und die TWR wäre die reine Kursentwicklung danach, +10 %.
+     */
+    @Test
+    void theDayBeforeTheFirstHoldingKeepsThePurchaseInsideTheChain() {
+        givenPrices("AAA", 100, 100, 100, 110);
+        givenPrices(BENCHMARK, 400, 400, 400, 400);
+        buy("AAA", "CHF", MAR, 10, 120);
+
+        PortfolioHistoryResponseDto result = history();
+
+        assertThat(result.seriesFrom()).isEqualTo(FEB);
+        assertThat(result.points())
+                .extracting(PortfolioHistoryPointDto::value, PortfolioHistoryPointDto::invested)
+                .containsExactly(
+                        tuple(new BigDecimal("0.00"), new BigDecimal("0.00")),
+                        tuple(new BigDecimal("1000.00"), new BigDecimal("1200.00")),
+                        tuple(new BigDecimal("1100.00"), new BigDecimal("1200.00")));
+        assertThat(result.points())
+                .extracting(PortfolioHistoryPointDto::index)
+                .containsExactly(
+                        new BigDecimal("100.0000"), new BigDecimal("83.3333"), new BigDecimal("91.6667"));
+        assertThat(result.timeWeightedReturn()).isEqualByComparingTo("-8.33");
+    }
+
+    /**
+     * Beide Ursachen zugleich: das Depot kauft erst im Februar, und der gekaufte Titel hat an diesem Tag
+     * noch keinen Kurs. Der Februar ist damit nicht bewertbar und kann nicht als Basis dienen, die Reihe
+     * beginnt beim Bestand im März - und der Grund ist die Lücke, nicht die leere Vorgeschichte.
+     */
+    @Test
+    void aGapAmongTheSkippedDaysIsReportedAsMissingDataAndNotAsAnEmptyDepot() {
+        givenPrices("AAA", 100, 100, 100, 110);
+        prices.put("BBB", new LinkedHashMap<>(Map.of(MAR, new BigDecimal("50"), TO, new BigDecimal("55"))));
+        givenPrices(BENCHMARK, 400, 400, 400, 400);
+        buy("BBB", "CHF", FEB, 10, 50);
+        buy("AAA", "CHF", MAR, 10, 100);
+
+        PortfolioHistoryResponseDto result = history();
+
+        assertThat(result.seriesFrom()).isEqualTo(MAR);
+        assertThat(result.seriesFromReason()).isEqualTo(PortfolioHistoryServiceImpl.MISSING_DATA);
+        assertThat(result.points())
+                .extracting(PortfolioHistoryPointDto::date, PortfolioHistoryPointDto::value)
+                .containsExactly(tuple(MAR, new BigDecimal("1500.00")), tuple(TO, new BigDecimal("1650.00")));
+        assertThat(result.excluded()).isEmpty();
     }
 
     /** Die Benchmark wird auf denselben Startpunkt normiert, sonst vergleicht die Linie nichts. */

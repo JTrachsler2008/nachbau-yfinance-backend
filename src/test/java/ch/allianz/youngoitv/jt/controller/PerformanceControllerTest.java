@@ -302,6 +302,8 @@ class PerformanceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currency").value("CHF"))
                 .andExpect(jsonPath("$.seriesFrom").value("2026-01-01"))
+                // Kein Grund: die Reihe beginnt am angefragten Tag, weil vor dem Zeitraum gekauft wurde.
+                .andExpect(jsonPath("$.seriesFromReason").doesNotExist())
                 .andExpect(jsonPath("$.benchmarkSymbol").value("SPY"))
                 .andExpect(jsonPath("$.timeWeightedReturn").value(20.0))
                 .andExpect(jsonPath("$.benchmarkReturn").value(0.0))
