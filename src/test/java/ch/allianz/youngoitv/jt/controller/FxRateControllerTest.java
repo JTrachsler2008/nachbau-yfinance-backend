@@ -1,14 +1,24 @@
 package ch.allianz.youngoitv.jt.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.allianz.youngoitv.jt.client.HistoricalPrice;
+import ch.allianz.youngoitv.jt.client.Interval;
+import ch.allianz.youngoitv.jt.client.MarketDataProvider;
 import ch.allianz.youngoitv.jt.entity.UserRole;
 import ch.allianz.youngoitv.jt.repository.UserRepository;
 import ch.allianz.youngoitv.jt.security.JwtService;
 import ch.allianz.youngoitv.jt.service.UserService;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,6 +26,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +47,11 @@ class FxRateControllerTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    // Ohne Stub liefert das per Voreinstellung Optional.empty() - der "kein Kurs verfügbar"-Test
+    // unten braucht das genauso wie der Echtbetrieb, nur ohne echten Netzwerkzugriff.
+    @MockitoBean
+    private MarketDataProvider marketDataProvider;
 
     private String token() {
         userService.register("uma", "uma@example.com", "password123");
@@ -79,6 +95,21 @@ class FxRateControllerTest {
                         .param("quote", "JPY")
                         .param("date", "2026-01-01"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void missingRateIsFetchedLiveFromTheMarketDataProviderInstead() throws Exception {
+        when(marketDataProvider.getHistorical(eq("GBPCHF=X"), any(), any(), eq(Interval.DAILY)))
+                .thenReturn(Optional.of(
+                        List.of(new HistoricalPrice(LocalDate.of(2026, 1, 1), new BigDecimal("1.12")))));
+
+        mockMvc.perform(get("/fx-rates")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token())
+                        .param("base", "GBP")
+                        .param("quote", "CHF")
+                        .param("date", "2026-01-05"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rate").value(1.12));
     }
 
     @Test
