@@ -5,14 +5,14 @@ import java.math.BigDecimal;
 /**
  * Geld- und zeitgewichtete Rendite eines Portfolios, in Prozent.
  *
- * <p>{@code timeWeightedReturn} ist bewusst noch {@code null}: die dafür nötige Zerlegung der
- * Historie in Teilperioden an jedem Kauf-/Verkaufsdatum, jede mit einer eigenen historischen
- * Neubewertung aller zu diesem Zeitpunkt gehaltenen Wertpapiere, ist eine eigenständige, noch nicht
- * abgeschlossene Arbeit - ein grob konstruierter Wert wäre schlimmer als ein fehlender, weil er sich
- * nicht von einem korrekt berechneten unterscheiden liesse. {@code moneyWeightedReturn} braucht
- * dagegen nur die tatsächlichen Cashflows und den heutigen Marktwert und ist deshalb bereits
- * vollständig.</p>
+ * <p>{@code moneyWeightedReturn} braucht nur die tatsächlichen Cashflows und den heutigen Marktwert
+ * und ist deshalb hier vollständig. Die zeitgewichtete Rendite braucht mehr, nämlich eine historische
+ * Neubewertung an jedem Stichtag; sie steht inzwischen in {@code PortfolioHistoryResponseDto}
+ * ({@code GET /portfolios/{id}/history}), wo sie zum Wertverlauf gehört, aus dem sie hervorgeht - und
+ * wo sie einen Zeitraum hat, den sie hier nicht hätte.</p>
  *
+ * @param timeWeightedReturn immer {@code null}. Das Feld bleibt, damit bestehende Aufrufe nicht
+ *     brechen; die Zahl kommt aus {@code /history}
  * @param moneyWeightedReturn {@code null}, wenn weniger als zwei Cashflows vorliegen (kein
  *     Zinsfuss bestimmbar) oder der heutige Marktwert nicht ermittelbar ist
  */
