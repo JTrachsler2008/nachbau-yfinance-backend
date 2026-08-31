@@ -94,6 +94,44 @@ class FifoLotServiceTest {
         assertThat(lots.get(0).purchasePrice()).isEqualByComparingTo("50.0000");
     }
 
+    /**
+     * Fälligkeit einer Anleihe: die ganze Menge wird zurückgezahlt, danach ist keine Tranche mehr
+     * offen. Ohne diesen Abbau bliebe die Anleihe nach der Rückzahlung im Bestand stehen und würde in
+     * jeder Bewertung weiter mitgezählt.
+     */
+    @Test
+    void redemptionConsumesTheOpenLotsLikeASell() {
+        Transaction redemption = new Transaction();
+        redemption.setTransactionType(TransactionType.REDEMPTION);
+        redemption.setQuantity(new BigDecimal("10"));
+        redemption.setPrice(new BigDecimal("100"));
+        redemption.setTransactionDate(LocalDate.of(2026, 3, 1));
+        List<Transaction> history = List.of(
+                buy(new BigDecimal("10"), new BigDecimal("95"), LocalDate.of(2026, 1, 1)),
+                redemption);
+
+        assertThat(fifoLotService.calculateOpenLots(history)).isEmpty();
+    }
+
+    /** Ein Coupon zahlt Zins aus und rührt den Bestand nicht an. */
+    @Test
+    void couponLeavesTheOpenLotsUntouched() {
+        Transaction coupon = new Transaction();
+        coupon.setTransactionType(TransactionType.COUPON);
+        coupon.setQuantity(new BigDecimal("10"));
+        coupon.setPrice(new BigDecimal("2.5"));
+        coupon.setTransactionDate(LocalDate.of(2026, 2, 1));
+        List<Transaction> history = List.of(
+                buy(new BigDecimal("10"), new BigDecimal("95"), LocalDate.of(2026, 1, 1)),
+                coupon);
+
+        List<Lot> lots = fifoLotService.calculateOpenLots(history);
+
+        assertThat(lots).hasSize(1);
+        assertThat(lots.get(0).quantity()).isEqualByComparingTo("10");
+        assertThat(lots.get(0).purchasePrice()).isEqualByComparingTo("95");
+    }
+
     @Test
     void mergerReplacesAllOpenLotsWithTheTransactionValues() {
         List<Transaction> history = List.of(

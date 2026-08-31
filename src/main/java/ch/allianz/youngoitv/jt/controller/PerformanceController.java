@@ -6,6 +6,7 @@ import ch.allianz.youngoitv.jt.dto.PortfolioReturnsResponseDto;
 import ch.allianz.youngoitv.jt.dto.PortfolioValuationResponseDto;
 import ch.allianz.youngoitv.jt.exception.InvalidSimulationParameterException;
 import ch.allianz.youngoitv.jt.service.DividendsService;
+import ch.allianz.youngoitv.jt.service.InterestService;
 import ch.allianz.youngoitv.jt.service.PortfolioHistoryService;
 import ch.allianz.youngoitv.jt.service.PortfolioReturnsService;
 import ch.allianz.youngoitv.jt.service.PortfolioService;
@@ -23,8 +24,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * YOUNGOITV-433: realisierte Gewinne und Dividendenerträge über die gesamte Transaktionshistorie
- * eines Portfolios, konsistent FX-konvertiert in die angeforderte Anzeigewährung.
+ * YOUNGOITV-433: realisierte Gewinne, Dividendenerträge und Zinserträge über die gesamte
+ * Transaktionshistorie eines Portfolios, konsistent FX-konvertiert in die angeforderte
+ * Anzeigewährung.
  *
  * <p>Marktwert und geldgewichtete Rendite ({@code /valuation}, {@code /returns}) brauchen nur einen
  * Livekurs je Position und eine Währungsumrechnung. Die zeitgewichtete Rendite braucht mehr, nämlich
@@ -48,6 +50,7 @@ public class PerformanceController {
     private final TransactionService transactionService;
     private final RealizedGainsService realizedGainsService;
     private final DividendsService dividendsService;
+    private final InterestService interestService;
     private final PortfolioValuationService portfolioValuationService;
     private final PortfolioReturnsService portfolioReturnsService;
     private final PortfolioHistoryService portfolioHistoryService;
@@ -57,6 +60,7 @@ public class PerformanceController {
             TransactionService transactionService,
             RealizedGainsService realizedGainsService,
             DividendsService dividendsService,
+            InterestService interestService,
             PortfolioValuationService portfolioValuationService,
             PortfolioReturnsService portfolioReturnsService,
             PortfolioHistoryService portfolioHistoryService) {
@@ -64,6 +68,7 @@ public class PerformanceController {
         this.transactionService = transactionService;
         this.realizedGainsService = realizedGainsService;
         this.dividendsService = dividendsService;
+        this.interestService = interestService;
         this.portfolioValuationService = portfolioValuationService;
         this.portfolioReturnsService = portfolioReturnsService;
         this.portfolioHistoryService = portfolioHistoryService;
@@ -85,6 +90,19 @@ public class PerformanceController {
         var transactions = transactionService.getTransactionsForPortfolio(portfolioId);
         return new CurrencyAmountResponseDto(
                 dividendsService.calculateTotalInCurrency(transactions, currency), currency);
+    }
+
+    /**
+     * Zinsertrag aus allen Coupon-Buchungen. Eigener Endpunkt und nicht Teil von {@code /dividends},
+     * weil Zins und Dividende zwei getrennt zu lesende Erträge sind (siehe {@link InterestService}).
+     */
+    @GetMapping("/interest")
+    public CurrencyAmountResponseDto interest(
+            Principal principal, @PathVariable Long portfolioId, @RequestParam String currency) {
+        portfolioService.getOwnedOrThrow(portfolioId, principal.getName());
+        var transactions = transactionService.getTransactionsForPortfolio(portfolioId);
+        return new CurrencyAmountResponseDto(
+                interestService.calculateTotalInCurrency(transactions, currency), currency);
     }
 
     @GetMapping("/valuation")

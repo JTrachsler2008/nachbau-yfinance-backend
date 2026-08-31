@@ -146,6 +146,83 @@ class PerformanceControllerTest {
                 .andExpect(jsonPath("$.amount").value(40.0));
     }
 
+    /**
+     * Zinsertrag netto: 10 * 2.50 - 1.00 Gebühr - 5.00 Steuer = 19.00, dazu 10 * 3.00 = 30.00 ohne
+     * Abzüge - zusammen 49.00. Netto, weil genau dieser Betrag auf dem Konto ankommt
+     * ({@code applyCoupon}).
+     */
+    @Test
+    void interestSumsAllCouponPaymentsNetOfFeeAndTax() throws Exception {
+        String token = tokenFor("paula");
+        long portfolioId = createPortfolio(token, "CHF");
+        long accountId = createAccount(token, portfolioId, "CHF");
+        long securityId = createSecurity(token, "PCPN", "CHF");
+
+        transact(token, accountId, String.valueOf(securityId), "COUPON",
+                "\"quantity\":10,\"price\":2.50,\"fee\":1.00,\"tax\":5.00,"
+                        + "\"transactionCurrency\":\"CHF\",\"transactionDate\":\"2026-06-30\"");
+        transact(token, accountId, String.valueOf(securityId), "COUPON",
+                "\"quantity\":10,\"price\":3.00,\"transactionCurrency\":\"CHF\",\"transactionDate\":\"2026-12-31\"");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/interest")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("currency", "CHF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(49.0))
+                .andExpect(jsonPath("$.currency").value("CHF"));
+    }
+
+    /**
+     * Zins und Dividende bleiben getrennt: in einer gemeinsamen Summe liesse sich der Anleiheertrag
+     * nachträglich nicht mehr herausrechnen.
+     */
+    @Test
+    void interestAndDividendsDoNotCountEachOthersPayments() throws Exception {
+        String token = tokenFor("quirin");
+        long portfolioId = createPortfolio(token, "CHF");
+        long accountId = createAccount(token, portfolioId, "CHF");
+        long securityId = createSecurity(token, "PMIX", "CHF");
+
+        transact(token, accountId, String.valueOf(securityId), "DIVIDEND",
+                "\"quantity\":10,\"price\":2.00,\"transactionCurrency\":\"CHF\",\"transactionDate\":\"2026-04-05\"");
+        transact(token, accountId, String.valueOf(securityId), "COUPON",
+                "\"quantity\":10,\"price\":3.00,\"transactionCurrency\":\"CHF\",\"transactionDate\":\"2026-06-30\"");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/dividends")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("currency", "CHF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(20.0));
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/interest")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("currency", "CHF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(30.0));
+    }
+
+    /** Ohne Coupon-Buchung ist der Zinsertrag 0 und nicht leer: die Aussage ist "es gab keinen". */
+    @Test
+    void interestIsZeroWithoutAnyCouponPayment() throws Exception {
+        String token = tokenFor("rahel");
+        long portfolioId = createPortfolio(token, "CHF");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/interest")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("currency", "CHF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(0.0));
+    }
+
+    @Test
+    void interestOfAnotherUsersPortfolioIsForbidden() throws Exception {
+        long portfolioId = createPortfolio(tokenFor("sven"), "CHF");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/interest")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor("tanja"))
+                        .param("currency", "CHF"))
+                .andExpect(status().isForbidden());
+    }
+
     @Test
     void realizedGainsAcrossDifferentTradingCurrencyAreConvertedBeforeSumming() throws Exception {
         String token = tokenFor("dana");

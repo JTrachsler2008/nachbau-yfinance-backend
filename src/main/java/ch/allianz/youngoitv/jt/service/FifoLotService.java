@@ -11,10 +11,11 @@ import org.springframework.stereotype.Service;
 
 /**
  * Eigenständiges Berechnungsmodell für offene Kauf-Tranchen, unabhängig vom aggregierten
- * Position-Datensatz. Verfolgt offene Chargen strikt nach Kaufdatum (First-In-First-Out); SPLIT
- * skaliert alle offenen Tranchen-Mengen mit der Ratio, ACQUISITION/MERGER ersetzt sie (im Original
- * eine bekannte Lücke, hier behoben). Reine Funktion über eine übergebene, nach Datum
- * aufsteigend sortierte Transaktionsliste - ohne DB-Zugriff, damit ohne Fixtures testbar.
+ * Position-Datensatz. Verfolgt offene Chargen strikt nach Kaufdatum (First-In-First-Out); SELL und
+ * REDEMPTION bauen sie ab, SPLIT skaliert alle offenen Tranchen-Mengen mit der Ratio,
+ * ACQUISITION/MERGER ersetzt sie (im Original eine bekannte Lücke, hier behoben). Reine Funktion
+ * über eine übergebene, nach Datum aufsteigend sortierte Transaktionsliste - ohne DB-Zugriff, damit
+ * ohne Fixtures testbar.
  */
 @Service
 public class FifoLotService {
@@ -25,13 +26,16 @@ public class FifoLotService {
         for (Transaction tx : transactionsOrderedByDate) {
             switch (tx.getTransactionType()) {
                 case BUY -> lots.addLast(new Lot(tx.getQuantity(), tx.getPrice(), tx.getTransactionDate()));
-                case SELL -> reduceFifo(lots, tx.getQuantity());
+                // Eine Rückzahlung baut die Tranchen ab wie ein Verkauf: bei Fälligkeit ist die
+                // ganze Menge weg, bei einer Teilrückzahlung die zurückgezahlte - in beiden Fällen
+                // die ältesten zuerst.
+                case SELL, REDEMPTION -> reduceFifo(lots, tx.getQuantity());
                 case SPLIT -> scaleLots(lots, tx.getSplitRatio());
                 case ACQUISITION, MERGER -> {
                     lots.clear();
                     lots.addLast(new Lot(tx.getQuantity(), tx.getPrice(), tx.getTransactionDate()));
                 }
-                case DIVIDEND -> {
+                case DIVIDEND, COUPON -> {
                     // Keine Auswirkung auf Bestands-Tranchen.
                 }
             }
@@ -41,7 +45,11 @@ public class FifoLotService {
 
     /**
      * Wie {@link #calculateOpenLots}, verfolgt aber zusätzlich den realisierten Gewinn/Verlust
-     * (Verkaufserlos minus FIFO-Kostenbasis der abgebauten Tranchen) je SELL-Transaktion.
+     * (Erlös minus FIFO-Kostenbasis der abgebauten Tranchen) je SELL- und REDEMPTION-Transaktion.
+     *
+     * <p>Eine Rückzahlung zählt mit, weil sie einen Gewinn oder Verlust genauso realisiert wie ein
+     * Verkauf: wer eine Anleihe unter dem Nominalwert gekauft hat, verdient bei Fälligkeit die
+     * Differenz. Bliebe sie draussen, verschwände dieser Betrag aus den realisierten Gewinnen.</p>
      */
     public List<RealizedGain> calculateRealizedGains(List<Transaction> transactionsOrderedByDate) {
         Deque<Lot> lots = new ArrayDeque<>();
@@ -50,28 +58,30 @@ public class FifoLotService {
         for (Transaction tx : transactionsOrderedByDate) {
             switch (tx.getTransactionType()) {
                 case BUY -> lots.addLast(new Lot(tx.getQuantity(), tx.getPrice(), tx.getTransactionDate()));
-                case SELL -> gains.add(sellAndComputeRealizedGain(lots, tx));
+                case SELL, REDEMPTION -> gains.add(disposeAndComputeRealizedGain(lots, tx));
                 case SPLIT -> scaleLots(lots, tx.getSplitRatio());
                 case ACQUISITION, MERGER -> {
                     lots.clear();
                     lots.addLast(new Lot(tx.getQuantity(), tx.getPrice(), tx.getTransactionDate()));
                 }
-                case DIVIDEND -> {
-                    // Keine Auswirkung auf Bestands-Tranchen oder realisierte Gewinne.
+                case DIVIDEND, COUPON -> {
+                    // Keine Auswirkung auf Bestands-Tranchen oder realisierte Gewinne. Ein Coupon ist
+                    // ein Ertrag und steht in der Zinsertragssumme, nicht im realisierten Gewinn.
                 }
             }
         }
         return gains;
     }
 
-    private RealizedGain sellAndComputeRealizedGain(Deque<Lot> lots, Transaction sellTx) {
-        BigDecimal totalCostBasis = reduceFifo(lots, sellTx.getQuantity());
+    private RealizedGain disposeAndComputeRealizedGain(Deque<Lot> lots, Transaction disposalTx) {
+        BigDecimal totalCostBasis = reduceFifo(lots, disposalTx.getQuantity());
 
-        BigDecimal fee = sellTx.getFee() == null ? BigDecimal.ZERO : sellTx.getFee();
-        BigDecimal tax = sellTx.getTax() == null ? BigDecimal.ZERO : sellTx.getTax();
-        BigDecimal proceeds = sellTx.getPrice().multiply(sellTx.getQuantity()).subtract(fee).subtract(tax);
+        BigDecimal fee = disposalTx.getFee() == null ? BigDecimal.ZERO : disposalTx.getFee();
+        BigDecimal tax = disposalTx.getTax() == null ? BigDecimal.ZERO : disposalTx.getTax();
+        BigDecimal proceeds =
+                disposalTx.getPrice().multiply(disposalTx.getQuantity()).subtract(fee).subtract(tax);
         BigDecimal gain = proceeds.subtract(totalCostBasis);
-        return new RealizedGain(gain, sellTx.getTransactionCurrency(), sellTx.getTransactionDate());
+        return new RealizedGain(gain, disposalTx.getTransactionCurrency(), disposalTx.getTransactionDate());
     }
 
     /**

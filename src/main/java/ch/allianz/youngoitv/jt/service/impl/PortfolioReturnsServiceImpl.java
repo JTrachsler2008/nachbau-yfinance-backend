@@ -22,11 +22,11 @@ import org.springframework.stereotype.Service;
  * Siehe {@link PortfolioReturnsService}.
  *
  * <p>Die Cashflows entstehen aus der tatsächlichen Kontowirkung jeder Buchung
- * ({@code TransactionServiceImpl.applyBuy/applySell/applyDividend}), nicht aus einer neu erfundenen
- * Fachlogik: ein Kauf kostet {@code price*quantity + fee + tax}, ein Verkauf bringt
- * {@code price*quantity - fee - tax}, eine Dividende {@code price*quantity}. SPLIT, ACQUISITION und
- * MERGER rühren den Kontostand laut {@code TransactionServiceImpl} nicht an und tragen deshalb nichts
- * bei.</p>
+ * ({@code TransactionServiceImpl.applyBuy/applyDisposal/applyDividend/applyCoupon}), nicht aus einer
+ * neu erfundenen Fachlogik: ein Kauf kostet {@code price*quantity + fee + tax}, ein Verkauf und eine
+ * Rückzahlung bringen {@code price*quantity - fee - tax}, ein Coupon ebenso, eine Dividende
+ * {@code price*quantity}. SPLIT, ACQUISITION und MERGER rühren den Kontostand laut
+ * {@code TransactionServiceImpl} nicht an und tragen deshalb nichts bei.</p>
  */
 @Service
 public class PortfolioReturnsServiceImpl implements PortfolioReturnsService {
@@ -93,7 +93,9 @@ public class PortfolioReturnsServiceImpl implements PortfolioReturnsService {
         BigDecimal tax = orZero(transaction.getTax());
         return switch (transaction.getTransactionType()) {
             case BUY -> price.multiply(quantity).add(fee).add(tax).negate();
-            case SELL -> price.multiply(quantity).subtract(fee).subtract(tax);
+            // Verkauf, Rückzahlung und Coupon rechnen gleich: der Betrag, der nach Gebühr und Steuer
+            // tatsächlich auf dem Konto ankommt.
+            case SELL, REDEMPTION, COUPON -> price.multiply(quantity).subtract(fee).subtract(tax);
             case DIVIDEND -> price.multiply(quantity);
             case SPLIT, ACQUISITION, MERGER -> null;
         };

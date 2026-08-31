@@ -87,6 +87,24 @@ class TransactionControllerTest {
         return jsonId(result);
     }
 
+    /**
+     * Wie {@link #createSecurity}, aber als Anleihe mit Coupon und Fälligkeit.
+     *
+     * Für die Buchungslogik macht der {@code assetType} keinen Unterschied - COUPON und REDEMPTION
+     * sind auf jedem Wertpapier buchbar. Die Anleihe steht hier, damit die Fixtures den Fall zeigen,
+     * für den die beiden Typen gedacht sind.
+     */
+    private long createBond(String token, String symbol, String currency) throws Exception {
+        MvcResult result = mockMvc.perform(post("/securities")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"symbol\":\"" + symbol + "\",\"name\":\"" + symbol
+                                + " 2.5% 2026\",\"assetType\":\"BOND\",\"tradingCurrency\":\"" + currency
+                                + "\",\"couponRate\":2.5,\"maturityDate\":\"2026-12-31\"}"))
+                .andReturn();
+        return jsonId(result);
+    }
+
     /** Legt einen Kurs an, damit die Umrechnung ihn findet statt live nachzuladen. */
     private void createFxRate(String token, String base, String quote, String date, String rate) throws Exception {
         mockMvc.perform(post("/fx-rates")
@@ -365,6 +383,132 @@ class TransactionControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cashAmount").value(0.0));
+    }
+
+    /**
+     * Coupon: Bestand unverändert, Betrag netto aufs Konto.
+     *
+     * 10 Stück * 2.50 = 25.00 Zins, minus 1.00 Gebühr und 5.00 Steuer = 19.00. Brutto gebucht - wie es
+     * die Dividende tut - stünden 25.00 auf dem Konto, also 6.00 mehr als tatsächlich gutgeschrieben
+     * wurden.
+     */
+    @Test
+    void couponIncreasesCashByTheAmountNetOfFeeAndTax() throws Exception {
+        String token = tokenFor("ilse");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createBond(token, "VCPN", "CHF");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"securityId":%d,"transactionType":"COUPON","quantity":10,"price":2.50,
+                                 "fee":1.00,"tax":5.00,"transactionCurrency":"CHF","transactionDate":"2026-06-30"}
+                                """.formatted(securityId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/accounts/" + accountId + "/withdraw")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount":19.00}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cashAmount").value(0.0));
+    }
+
+    /**
+     * Rückzahlung bei Fälligkeit: der Bestand geht auf 0 und der Rückzahlungsbetrag kommt aufs Konto.
+     *
+     * 1000.00 Startkapital - 10*95 Kaufpreis + 10*100 Rückzahlung = 1050.00. Der Gewinn von 50.00
+     * gegenüber dem Einstand steckt im Saldo und erscheint über die FIFO-Rechnung in den realisierten
+     * Gewinnen (siehe FifoLotServiceRealizedGainsTest).
+     */
+    @Test
+    void redemptionClosesThePositionAndCreditsTheRedemptionAmount() throws Exception {
+        String token = tokenFor("ingo");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createBond(token, "VRED", "CHF");
+        deposit(token, accountId, "1000.00");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"securityId":%d,"transactionType":"BUY","quantity":10,"price":95,
+                         "transactionCurrency":"CHF","transactionDate":"2026-01-01"}
+                        """.formatted(securityId)));
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"securityId":%d,"transactionType":"REDEMPTION","quantity":10,"price":100,
+                                 "transactionCurrency":"CHF","transactionDate":"2026-12-31"}
+                                """.formatted(securityId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/accounts/" + accountId + "/withdraw")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount":1050.00}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cashAmount").value(0.0));
+
+        MvcResult lotsResult = mockMvc.perform(get("/accounts/" + accountId + "/positions/" + securityId + "/lots")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(objectMapper.readTree(lotsResult.getResponse().getContentAsString())).isEmpty();
+    }
+
+    /**
+     * Ohne Preis würde der Dienst den Börsenkurs zum Datum nehmen. Zurückgezahlt wird aber der
+     * Nominalwert, und Anleihekurse stehen in Prozent davon - ein hergeleiteter Betrag wäre falsch,
+     * eine angenommene 100 erfunden. Deshalb 400 statt einer stillen Annahme.
+     */
+    @Test
+    void redemptionWithoutAPriceReturns400() throws Exception {
+        String token = tokenFor("irma");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createBond(token, "VRNP", "CHF");
+        deposit(token, accountId, "1000.00");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"securityId":%d,"transactionType":"BUY","quantity":10,"price":95,
+                         "transactionCurrency":"CHF","transactionDate":"2026-01-01"}
+                        """.formatted(securityId)));
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"securityId":%d,"transactionType":"REDEMPTION","quantity":10,
+                                 "transactionCurrency":"CHF","transactionDate":"2026-12-31"}
+                                """.formatted(securityId)))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** Dieselbe Deckungsprüfung wie beim Verkauf: mehr zurückzahlen als im Bestand liegt geht nicht. */
+    @Test
+    void redemptionOfMoreThanHeldReturns400() throws Exception {
+        String token = tokenFor("iris");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createBond(token, "VRMH", "CHF");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"securityId":%d,"transactionType":"REDEMPTION","quantity":10,"price":100,
+                                 "transactionCurrency":"CHF","transactionDate":"2026-12-31"}
+                                """.formatted(securityId)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
