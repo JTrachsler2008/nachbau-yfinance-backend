@@ -87,6 +87,16 @@ class TransactionControllerTest {
         return jsonId(result);
     }
 
+    /** Legt einen Kurs an, damit die Umrechnung ihn findet statt live nachzuladen. */
+    private void createFxRate(String token, String base, String quote, String date, String rate) throws Exception {
+        mockMvc.perform(post("/fx-rates")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"baseCurrency\":\"" + base + "\",\"quoteCurrency\":\"" + quote
+                                + "\",\"rateDate\":\"" + date + "\",\"rate\":" + rate + "}"))
+                .andExpect(status().isCreated());
+    }
+
     private void deposit(String token, long accountId, String amount) throws Exception {
         mockMvc.perform(post("/accounts/" + accountId + "/deposit")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -128,6 +138,156 @@ class TransactionControllerTest {
         var lots = objectMapper.readTree(lotsResult.getResponse().getContentAsString());
         assertThat(lots).hasSize(1);
         assertThat(lots.get(0).get("quantity").asDouble()).isEqualTo(10.0);
+    }
+
+    /**
+     * Kauf in Fremdwährung: die Deckungsprüfung und der Abzug müssen den Gegenwert in der
+     * Kontowährung verwenden, nicht die Fremdwährungszahl.
+     *
+     * USD 1000 kosten bei Kurs 0.80 CHF 800. Auf dem Konto liegen CHF 900, der Kauf ist also gedeckt.
+     * Ohne Umrechnung verglich der Code CHF 900 mit der Zahl 1000 und lehnte ihn mit 400 ab.
+     */
+    @Test
+    void buyInAForeignCurrencyChargesTheConvertedAmountToTheAccount() throws Exception {
+        String token = tokenFor("nadia");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createSecurity(token, "VFXB", "USD");
+        createFxRate(token, "USD", "CHF", "2026-01-01", "0.80");
+        deposit(token, accountId, "900.00");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"securityId":%d,"transactionType":"BUY","quantity":10,"price":100,
+                                 "transactionCurrency":"USD","transactionDate":"2026-01-05"}
+                                """.formatted(securityId)))
+                .andExpect(status().isCreated());
+
+        // CHF 900 - (USD 1000 * 0.80) = CHF 100 verbleibendes Cash.
+        mockMvc.perform(post("/accounts/" + accountId + "/withdraw")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount":100.00}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cashAmount").value(0.0));
+    }
+
+    /** Der Ø-Kaufpreis der Position bleibt in der Handelswährung, nur Cash wird umgerechnet. */
+    @Test
+    void buyInAForeignCurrencyKeepsThePositionCostInTheTradingCurrency() throws Exception {
+        String token = tokenFor("norbert");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createSecurity(token, "VFXP", "USD");
+        createFxRate(token, "USD", "CHF", "2026-01-01", "0.80");
+        deposit(token, accountId, "900.00");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"securityId":%d,"transactionType":"BUY","quantity":10,"price":100,
+                         "transactionCurrency":"USD","transactionDate":"2026-01-05"}
+                        """.formatted(securityId)));
+
+        MvcResult lotsResult = mockMvc.perform(get("/accounts/" + accountId + "/positions/" + securityId + "/lots")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        var lots = objectMapper.readTree(lotsResult.getResponse().getContentAsString());
+        assertThat(lots).hasSize(1);
+        // USD 100, nicht die CHF 80 des Gegenwerts.
+        assertThat(lots.get(0).get("purchasePrice").asDouble()).isEqualTo(100.0);
+    }
+
+    /** Verkauf in Fremdwährung: der Erlös wird umgerechnet gutgeschrieben. */
+    @Test
+    void sellInAForeignCurrencyCreditsTheConvertedProceeds() throws Exception {
+        String token = tokenFor("nino");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createSecurity(token, "VFXS", "USD");
+        createFxRate(token, "USD", "CHF", "2026-01-01", "0.80");
+        deposit(token, accountId, "900.00");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"securityId":%d,"transactionType":"BUY","quantity":10,"price":100,
+                         "transactionCurrency":"USD","transactionDate":"2026-01-05"}
+                        """.formatted(securityId)));
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"securityId":%d,"transactionType":"SELL","quantity":10,"price":120,
+                                 "transactionCurrency":"USD","transactionDate":"2026-02-05"}
+                                """.formatted(securityId)))
+                .andExpect(status().isCreated());
+
+        // CHF 100 Restbestand + (USD 1200 * 0.80) = CHF 1060.
+        mockMvc.perform(post("/accounts/" + accountId + "/withdraw")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount":1060.00}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cashAmount").value(0.0));
+    }
+
+    /** Dividende in Fremdwährung: ebenfalls umgerechnet, sonst wächst der Saldo um die falsche Zahl. */
+    @Test
+    void dividendInAForeignCurrencyCreditsTheConvertedPayout() throws Exception {
+        String token = tokenFor("nora");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createSecurity(token, "VFXD", "USD");
+        createFxRate(token, "USD", "CHF", "2026-01-01", "0.80");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"securityId":%d,"transactionType":"DIVIDEND","quantity":10,"price":2.50,
+                                 "transactionCurrency":"USD","transactionDate":"2026-01-05"}
+                                """.formatted(securityId)))
+                .andExpect(status().isCreated());
+
+        // USD 25 * 0.80 = CHF 20, nicht CHF 25.
+        mockMvc.perform(post("/accounts/" + accountId + "/withdraw")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount":20.00}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cashAmount").value(0.0));
+    }
+
+    /**
+     * Auch mit Umrechnung bleibt ein wirklich ungedeckter Kauf abgelehnt: USD 2000 kosten CHF 1600,
+     * auf dem Konto liegen CHF 900.
+     */
+    @Test
+    void buyInAForeignCurrencyWithoutSufficientCashStillReturns400() throws Exception {
+        String token = tokenFor("nils");
+        long accountId = createAccount(token, "CHF");
+        long securityId = createSecurity(token, "VFXN", "USD");
+        createFxRate(token, "USD", "CHF", "2026-01-01", "0.80");
+        deposit(token, accountId, "900.00");
+
+        mockMvc.perform(post("/accounts/" + accountId + "/transactions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"securityId":%d,"transactionType":"BUY","quantity":20,"price":100,
+                                 "transactionCurrency":"USD","transactionDate":"2026-01-05"}
+                                """.formatted(securityId)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
