@@ -114,18 +114,22 @@ public class TransactionServiceImpl implements TransactionService {
     private void applyBuy(Account account, Position position, TransactionRequestDto request,
             BigDecimal price, BigDecimal fee, BigDecimal tax) {
         BigDecimal totalCost = price.multiply(request.quantity()).add(fee).add(tax);
-        if (account.getCashAmount().compareTo(totalCost) < 0) {
-            throw new InsufficientFundsException(
-                    "Account " + account.getId() + " has insufficient cash for a BUY of " + totalCost);
+        BigDecimal cashCost = inAccountCurrency(account, request, totalCost);
+        if (account.getCashAmount().compareTo(cashCost) < 0) {
+            throw new InsufficientFundsException("Account " + account.getId()
+                    + " has insufficient cash for a BUY of " + cashCost + " " + account.getCurrency());
         }
 
+        // Der Bestand bleibt in der Handelswährung: Menge und Ø-Kaufpreis einer Position werden überall
+        // in dieser Währung gelesen (siehe PositionServiceImpl und die Positionstabelle im Frontend).
+        // Nur die Cash-Seite wechselt in die Kontowährung.
         BigDecimal existingCost = position.getTotalQuantity().multiply(position.getAveragePurchasePrice());
         BigDecimal newQuantity = position.getTotalQuantity().add(request.quantity());
         BigDecimal newCost = existingCost.add(price.multiply(request.quantity())).add(fee).add(tax);
 
         position.setTotalQuantity(newQuantity);
         position.setAveragePurchasePrice(newCost.divide(newQuantity, SCALE, RoundingMode.HALF_UP));
-        account.setCashAmount(account.getCashAmount().subtract(totalCost));
+        account.setCashAmount(account.getCashAmount().subtract(cashCost));
     }
 
     private void applySell(Account account, Position position, TransactionRequestDto request,
@@ -137,11 +141,12 @@ public class TransactionServiceImpl implements TransactionService {
 
         position.setTotalQuantity(position.getTotalQuantity().subtract(request.quantity()));
         BigDecimal proceeds = price.multiply(request.quantity()).subtract(fee).subtract(tax);
-        account.setCashAmount(account.getCashAmount().add(proceeds));
+        account.setCashAmount(account.getCashAmount().add(inAccountCurrency(account, request, proceeds)));
     }
 
     private void applyDividend(Account account, TransactionRequestDto request, BigDecimal price) {
-        account.setCashAmount(account.getCashAmount().add(price.multiply(request.quantity())));
+        BigDecimal payout = price.multiply(request.quantity());
+        account.setCashAmount(account.getCashAmount().add(inAccountCurrency(account, request, payout)));
     }
 
     private void applySplit(Position position, TransactionRequestDto request) {
@@ -163,6 +168,26 @@ public class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "No price given and no historical quote available for " + security.getSymbol()
                                 + " on or before " + request.transactionDate()));
+    }
+
+    /**
+     * Rechnet einen Betrag der Transaktionswährung in die Währung des Kontos um.
+     *
+     * Preis, Gebühr und Steuer einer Buchung stehen in der Transaktionswährung, der Kontostand aber in
+     * der Kontowährung. Ohne diese Umrechnung verlangte ein Kauf über USD 1000 von einem CHF-Konto
+     * CHF 1000 statt der tatsächlichen Gegenwert-Summe: gedeckte Käufe wurden mit "insufficient cash"
+     * abgelehnt, und bei den übrigen wanderte die Fremdwährungszahl unverändert in den CHF-Saldo.
+     *
+     * Auf {@code SCALE} gerundet, weil {@code cash_amount} mit vier Nachkommastellen gespeichert wird.
+     * Ohne Rundung rechnete jede Folgebuchung mit mehr Stellen, als die Datenbank hält.
+     *
+     * Fehlt der Kurs ganz, wirft der Lookup ({@link FxConversionService}) - kein stilles 1:1, das den
+     * Saldo unbemerkt falsch fortschriebe.
+     */
+    private BigDecimal inAccountCurrency(Account account, TransactionRequestDto request, BigDecimal amount) {
+        return fxConversionService
+                .convert(amount, request.transactionCurrency(), account.getCurrency(), request.transactionDate())
+                .setScale(SCALE, RoundingMode.HALF_UP);
     }
 
     private BigDecimal resolveFxRate(Account account, TransactionRequestDto request) {
