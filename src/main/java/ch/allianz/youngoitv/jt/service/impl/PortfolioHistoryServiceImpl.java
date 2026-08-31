@@ -61,7 +61,13 @@ import org.springframework.stereotype.Service;
  * Positionen nicht wie eine über das ganze Portfolio aussieht. Ein Wertpapier <em>mit</em> Historie,
  * die aber erst mitten im Zeitraum beginnt, ist ein anderer Fall: dort ist der Wert an den früheren
  * Tagen unbekannt, und diese Tage bleiben ohne Wert, statt eine zu kleine Summe zu zeigen. Die Reihe
- * beginnt deshalb erst am ersten vollständig bewertbaren Tag ({@code seriesFrom}).</p>
+ * beginnt deshalb erst am ersten vollständig bewertbaren Tag.</p>
+ *
+ * <p><strong>Wo die Reihe beginnt.</strong> Nicht am angefragten ersten Tag, sondern am Tag vor dem
+ * ersten Bestand ({@code seriesFrom}, Grund in {@code seriesFromReason}) - siehe
+ * {@link #seriesStart(List, int)}. Ein leeres Depot ist bewertbar, aber seine 0 ist keine Rendite,
+ * und eine Benchmark, die schon Monate vor dem ersten Kauf auf 100 normiert wird, stünde mit einem
+ * Vorlauf neben einer TWR ohne Vorlauf.</p>
  */
 @Service
 public class PortfolioHistoryServiceImpl implements PortfolioHistoryService {
@@ -74,6 +80,16 @@ public class PortfolioHistoryServiceImpl implements PortfolioHistoryService {
     static final String NO_PRICE_HISTORY = "NO_PRICE_HISTORY";
 
     static final String NO_FX_RATE = "NO_FX_RATE";
+
+    /**
+     * Gründe für einen späteren Beginn der Reihe. Nicht dieselben Kennungen wie oben, weil sie eine
+     * andere Frage beantworten: dort geht es um ein einzelnes Wertpapier, hier um den Anfang der
+     * ganzen Linie. {@code NOT_INVESTED} ist dabei kein Mangel, sondern die Vorgeschichte eines
+     * Depots, das im gewählten Zeitraum erst später gekauft hat.
+     */
+    static final String NOT_INVESTED = "NOT_INVESTED";
+
+    static final String MISSING_DATA = "MISSING_DATA";
 
     /**
      * Kalendertage, die vor dem Zeitraum zusätzlich geladen werden. Der erste Tag der Reihe ist oft
@@ -150,12 +166,15 @@ public class PortfolioHistoryServiceImpl implements PortfolioHistoryService {
         }
         withoutFxRate.forEach(symbol -> excluded.add(new RiskExclusionDto(symbol, NO_FX_RATE)));
 
-        int start = indexOfFirstValue(values);
-        if (start < 0) {
+        int firstValued = indexOfFirstValue(values);
+        if (firstValued < 0) {
+            // Kein einziger bewertbarer Tag: der Grund steht trotzdem dabei, auch wenn es keine Reihe
+            // gibt, deren Anfang er erklären könnte - die Ursache nennt zusätzlich `excluded`.
             return new PortfolioHistoryResponseDto(
-                    portfolio.getId(), baseCurrency, from, to, null, benchmarkSymbol,
+                    portfolio.getId(), baseCurrency, from, to, null, MISSING_DATA, benchmarkSymbol,
                     null, null, List.of(), excluded);
         }
+        int start = seriesStart(values, firstValued);
 
         List<LocalDate> dates = grid.subList(start, grid.size());
         List<BigDecimal> series = values.subList(start, values.size());
@@ -193,6 +212,7 @@ public class PortfolioHistoryServiceImpl implements PortfolioHistoryService {
                 from,
                 to,
                 dates.get(0),
+                seriesFromReason(values, start),
                 benchmarkSymbol,
                 chainComplete ? asPercent(factors.get(factors.size() - 1).subtract(BigDecimal.ONE)) : null,
                 growth(benchmarkIndex),
@@ -437,6 +457,61 @@ public class PortfolioHistoryServiceImpl implements PortfolioHistoryService {
                             .divide(base.getValue(), INDEX_SCALE, RoundingMode.HALF_UP));
         }
         return index;
+    }
+
+    /**
+     * Erster Tag der Reihe: der Tag vor dem ersten Bestand, nicht der erste bewertbare Tag.
+     *
+     * <p>Ein Depot, dessen erster Kauf mitten im gewählten Zeitraum liegt, ist an den Tagen davor
+     * bewertbar - es ist 0 wert. Diese Tage gehören trotzdem nicht in die Reihe: sie sind keine
+     * Nullrendite, sondern keine Rendite. Die Vergleichslinie würde über sie hinweg laufen, weil die
+     * Benchmark am ersten Tag der Reihe auf 100 normiert wird, und neben einer TWR stehen, die erst
+     * beim Kauf beginnt. Beide Zahlen sind dann einzeln richtig und nebeneinander irreführend: ein
+     * halbes Jahr Marktentwicklung gegen ein Depot, das in diesem halben Jahr gar nicht am Markt war.
+     * </p>
+     *
+     * <p>Ein Tag ohne Bestand bleibt als Basis stehen, nicht null Tage: nur so fällt der Cashflow des
+     * ersten Kaufs in die erste Teilperiode, und deren Rendite enthält den Unterschied zwischen
+     * bezahltem Preis und Schlusskurs des Kauftags. Fehlt dieser Tag als Wert - etwa weil an ihm ein
+     * anderes, nicht bewertbares Wertpapier lag -, beginnt die Reihe beim Bestand selbst.</p>
+     *
+     * <p>Ein Zeitraum ganz ohne Bestand behält den ersten bewertbaren Tag: eine Wertlinie auf 0 ist
+     * die richtige Auskunft über ein leeres Depot, und Index und TWR bleiben ohnehin leer.</p>
+     */
+    private static int seriesStart(List<BigDecimal> values, int firstValued) {
+        int firstHolding = -1;
+        for (int i = firstValued; i < values.size(); i++) {
+            BigDecimal value = values.get(i);
+            if (value != null && value.signum() > 0) {
+                firstHolding = i;
+                break;
+            }
+        }
+        if (firstHolding <= firstValued) {
+            return firstValued;
+        }
+        BigDecimal dayBefore = values.get(firstHolding - 1);
+        return dayBefore != null && dayBefore.signum() == 0 ? firstHolding - 1 : firstHolding;
+    }
+
+    /**
+     * Warum die Reihe erst später beginnt, oder {@code null}, wenn sie am angefragten Tag beginnt.
+     *
+     * <p>Gelesen wird an den weggelassenen Tagen selbst und nicht an den Indizes, weil beide Ursachen
+     * zugleich auftreten können: ein Depot, das später kauft und dessen erster Titel obendrein noch
+     * keinen Kurs hat. War einer der übersprungenen Tage nicht bewertbar, ist das die Auskunft, die
+     * zählt - ein Loch in den Daten ist ein Mangel, eine leere Vorgeschichte nicht.</p>
+     */
+    private static String seriesFromReason(List<BigDecimal> values, int start) {
+        if (start == 0) {
+            return null;
+        }
+        for (int i = 0; i < start; i++) {
+            if (values.get(i) == null) {
+                return MISSING_DATA;
+            }
+        }
+        return NOT_INVESTED;
     }
 
     /** Erste Stelle mit einem Wert, oder -1 wenn die Reihe an keinem Tag bewertbar war. */
