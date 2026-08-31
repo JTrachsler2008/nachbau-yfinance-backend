@@ -191,6 +191,59 @@ class PortfolioHistoryServiceImplTest {
         assertThat(result.timeWeightedReturn()).isEqualByComparingTo("0.00");
     }
 
+    /**
+     * Eine Rückzahlung nimmt die Position aus der Reihe wie ein Verkauf: nach Fälligkeit liegt das
+     * Papier nicht mehr im Depot. Blieb sie unberücksichtigt, wertete die Reihe eine Anleihe weiter,
+     * die es nicht mehr gibt - und der Depotwert wäre um den ganzen Posten zu hoch.
+     */
+    @Test
+    void aRedemptionRemovesThePositionFromTheSeriesLikeASale() {
+        givenPrices("AAA", 100, 100, 100, 100);
+        givenPrices(BENCHMARK, 400, 400, 400, 400);
+        buy("AAA", "CHF", BEFORE, 10, 100);
+        redemption("AAA", FEB, 10, 100);
+
+        PortfolioHistoryResponseDto result = history();
+
+        assertThat(result.points())
+                .extracting(PortfolioHistoryPointDto::value)
+                .containsExactly(
+                        new BigDecimal("1000.00"),
+                        new BigDecimal("0.00"),
+                        new BigDecimal("0.00"),
+                        new BigDecimal("0.00"));
+        assertThat(result.points().get(3).invested()).isEqualByComparingTo("0.00");
+        assertThat(result.timeWeightedReturn()).isEqualByComparingTo("0.00");
+    }
+
+    /**
+     * Ein Coupon lässt den Bestand stehen und nimmt Geld aus dem Depot - wie eine Dividende.
+     *
+     * 10 * 2.50 = 25.00 Zins, minus 1.00 Gebühr und 4.00 Steuer = 20.00 Abfluss, netto wie in
+     * {@code applyCoupon}. Der Depotwert bleibt bei 1000.00, der Einsatz sinkt auf 980.00, und weil
+     * der Wert trotz Auszahlung gleich blieb, sind die 20.00 verdiente Rendite: 2 % im Februar.
+     */
+    @Test
+    void aCouponLeavesTheHoldingAndCountsAsAnOutflow() {
+        givenPrices("AAA", 100, 100, 100, 100);
+        givenPrices(BENCHMARK, 400, 400, 400, 400);
+        buy("AAA", "CHF", BEFORE, 10, 100);
+        coupon("AAA", FEB, 10, new BigDecimal("2.50"), new BigDecimal("1.00"), new BigDecimal("4.00"));
+
+        PortfolioHistoryResponseDto result = history();
+
+        assertThat(result.points()).allSatisfy(point ->
+                assertThat(point.value()).isEqualByComparingTo("1000.00"));
+        assertThat(result.points())
+                .extracting(PortfolioHistoryPointDto::invested)
+                .containsExactly(
+                        new BigDecimal("1000.00"),
+                        new BigDecimal("980.00"),
+                        new BigDecimal("980.00"),
+                        new BigDecimal("980.00"));
+        assertThat(result.timeWeightedReturn()).isEqualByComparingTo("2.00");
+    }
+
     /** Ein Split verdreifacht die Stückzahl und darf den Wert deshalb nicht verändern. */
     @Test
     void aSplitLeavesTheValueUnchanged() {
@@ -497,6 +550,19 @@ class PortfolioHistoryServiceImplTest {
 
     private void sell(String symbol, String currency, LocalDate date, int quantity, int price) {
         transactions.add(transaction(TransactionType.SELL, symbol, currency, date, quantity, price));
+    }
+
+    private void redemption(String symbol, LocalDate date, int quantity, int price) {
+        transactions.add(transaction(TransactionType.REDEMPTION, symbol, "CHF", date, quantity, price));
+    }
+
+    /** Coupon mit Gebühr und Steuer, weil der Zufluss netto gerechnet wird. */
+    private void coupon(String symbol, LocalDate date, int quantity, BigDecimal price, BigDecimal fee, BigDecimal tax) {
+        Transaction transaction = transaction(TransactionType.COUPON, symbol, "CHF", date, quantity, 0);
+        transaction.setPrice(price);
+        transaction.setFee(fee);
+        transaction.setTax(tax);
+        transactions.add(transaction);
     }
 
     private void split(String symbol, LocalDate date, int ratio) {

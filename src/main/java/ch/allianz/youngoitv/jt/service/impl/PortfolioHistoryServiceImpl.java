@@ -256,14 +256,16 @@ public class PortfolioHistoryServiceImpl implements PortfolioHistoryService {
         BigDecimal quantity = transaction.getQuantity() == null ? BigDecimal.ZERO : transaction.getQuantity();
         return switch (transaction.getTransactionType()) {
             case BUY -> current.add(quantity);
-            case SELL -> current.subtract(quantity);
+            // Eine Rückzahlung nimmt den Bestand weg wie ein Verkauf: nach Fälligkeit liegt das Papier
+            // nicht mehr im Depot und darf ab diesem Tag nicht mehr mitbewertet werden.
+            case SELL, REDEMPTION -> current.subtract(quantity);
             // Eine SPLIT-Buchung ohne Ratio lehnt der Transaktionsdienst ab; sollte eine alte Zeile
             // ohne dastehen, ist "Bestand unverändert" die einzige Annahme, die nichts erfindet.
             case SPLIT -> transaction.getSplitRatio() == null
                     ? current
                     : current.multiply(transaction.getSplitRatio());
             case ACQUISITION, MERGER -> quantity;
-            case DIVIDEND -> current;
+            case DIVIDEND, COUPON -> current;
         };
     }
 
@@ -283,9 +285,10 @@ public class PortfolioHistoryServiceImpl implements PortfolioHistoryService {
      * Externe Cashflows je Tag, in der Basiswährung, Zufluss ins Portfolio positiv.
      *
      * <p>Die Beträge sind dieselben, die {@code TransactionServiceImpl} dem Konto belastet oder
-     * gutschreibt: ein Kauf kostet {@code price*quantity + fee + tax}, ein Verkauf bringt
-     * {@code price*quantity - fee - tax}, eine Dividende {@code price*quantity}. SPLIT, ACQUISITION
-     * und MERGER rühren den Kontostand nicht an und sind deshalb keine Cashflows.</p>
+     * gutschreibt: ein Kauf kostet {@code price*quantity + fee + tax}, ein Verkauf und eine
+     * Rückzahlung bringen {@code price*quantity - fee - tax}, ein Coupon ebenso, eine Dividende
+     * {@code price*quantity}. SPLIT, ACQUISITION und MERGER rühren den Kontostand nicht an und sind
+     * deshalb keine Cashflows.</p>
      *
      * <p>Die Umrechnung darf hier werfen, ohne dass es einen Auffangzweig braucht: eine Buchung wird
      * nur angelegt, wenn zu ihrem Datum ein Kurs in die Basiswährung des Portfolios vorliegt (siehe
@@ -316,7 +319,9 @@ public class PortfolioHistoryServiceImpl implements PortfolioHistoryService {
         BigDecimal tax = orZero(transaction.getTax());
         return switch (transaction.getTransactionType()) {
             case BUY -> price.multiply(quantity).add(fee).add(tax);
-            case SELL -> price.multiply(quantity).subtract(fee).subtract(tax).negate();
+            // Abfluss aus dem Wertpapierbestand, deshalb negativ: Verkauf und Rückzahlung machen aus
+            // Bestand Cash, der Coupon nimmt einen Ertrag heraus, den der Depotwert nie enthielt.
+            case SELL, REDEMPTION, COUPON -> price.multiply(quantity).subtract(fee).subtract(tax).negate();
             case DIVIDEND -> price.multiply(quantity).negate();
             case SPLIT, ACQUISITION, MERGER -> null;
         };

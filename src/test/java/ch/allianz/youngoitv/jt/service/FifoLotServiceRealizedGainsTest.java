@@ -87,4 +87,51 @@ class FifoLotServiceRealizedGainsTest {
 
         assertThat(gains).isEmpty();
     }
+
+    /**
+     * Anleihe unter dem Nominalwert gekauft, bei Fälligkeit zum Nominalwert zurückgezahlt.
+     *
+     * Handrechnung: Kauf 10 Stück zu 95, Rückzahlung 10 Stück zu 100. Erlös = 1000,
+     * Kostenbasis = 950, Gewinn = 50. Der Betrag ist verdient, obwohl nie am Markt verkauft wurde -
+     * bliebe die Rückzahlung draussen, fehlte er in den realisierten Gewinnen ganz.
+     */
+    @Test
+    void aRedemptionRealizesTheDifferenceToTheCostBasis() {
+        List<Transaction> history = List.of(
+                transaction(TransactionType.BUY, new BigDecimal("10"), new BigDecimal("95"), LocalDate.of(2026, 1, 1)),
+                transaction(TransactionType.REDEMPTION, new BigDecimal("10"), new BigDecimal("100"),
+                        LocalDate.of(2026, 12, 31)));
+
+        List<RealizedGain> gains = fifoLotService.calculateRealizedGains(history);
+
+        assertThat(gains).hasSize(1);
+        assertThat(gains.get(0).amount()).isEqualByComparingTo("50");
+    }
+
+    /** Über dem Nominalwert gekauft: dieselbe Rechnung ergibt einen Verlust, keine 0. */
+    @Test
+    void aRedemptionBelowTheCostBasisRealizesALoss() {
+        List<Transaction> history = List.of(
+                transaction(TransactionType.BUY, new BigDecimal("10"), new BigDecimal("104"), LocalDate.of(2026, 1, 1)),
+                transaction(TransactionType.REDEMPTION, new BigDecimal("10"), new BigDecimal("100"),
+                        LocalDate.of(2026, 12, 31)));
+
+        List<RealizedGain> gains = fifoLotService.calculateRealizedGains(history);
+
+        assertThat(gains).hasSize(1);
+        assertThat(gains.get(0).amount()).isEqualByComparingTo("-40");
+    }
+
+    /** Ein Coupon ist ein Ertrag und steht im Zinsertrag, nicht im realisierten Gewinn. */
+    @Test
+    void couponsDoNotProduceRealizedGainEntries() {
+        List<Transaction> history = List.of(
+                transaction(TransactionType.BUY, new BigDecimal("10"), new BigDecimal("95"), LocalDate.of(2026, 1, 1)),
+                transaction(TransactionType.COUPON, new BigDecimal("10"), new BigDecimal("2.5"),
+                        LocalDate.of(2026, 6, 30)));
+
+        List<RealizedGain> gains = fifoLotService.calculateRealizedGains(history);
+
+        assertThat(gains).isEmpty();
+    }
 }

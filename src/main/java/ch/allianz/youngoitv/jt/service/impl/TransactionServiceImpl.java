@@ -60,6 +60,14 @@ public class TransactionServiceImpl implements TransactionService {
         if (request.transactionType() == TransactionType.SPLIT && request.splitRatio() == null) {
             throw new InvalidTransactionTypeException("SPLIT requires a splitRatio");
         }
+        // Ohne Preis würde resolvePrice() den Börsenkurs zum Datum nehmen. Bei einer Rückzahlung ist
+        // das der falsche Betrag: zurückgezahlt wird der Nominalwert, und Anleihekurse stehen in
+        // Prozent davon. Ein Feld für den Nominalwert gibt es nicht, also muss der Betrag mitkommen -
+        // eine angenommene 100 wäre eine erfundene Zahl im Kontostand.
+        if (request.transactionType() == TransactionType.REDEMPTION && request.price() == null) {
+            throw new InvalidTransactionTypeException(
+                    "REDEMPTION requires a price (the redemption amount per unit)");
+        }
 
         Account account = accountService.getOwnedOrThrow(accountId, username);
         Security security = securityService.getByIdOrThrow(request.securityId());
@@ -75,8 +83,11 @@ public class TransactionServiceImpl implements TransactionService {
 
         switch (request.transactionType()) {
             case BUY -> applyBuy(account, position, request, price, fee, tax);
-            case SELL -> applySell(account, position, request, price, fee, tax);
+            // Eine Rückzahlung ist buchhalterisch derselbe Vorgang wie ein Verkauf: der Bestand geht
+            // ab, der Erlös kommt aufs Konto, und die FIFO-Rechnung stellt ihn dem Einstand gegenüber.
+            case SELL, REDEMPTION -> applyDisposal(account, position, request, price, fee, tax);
             case DIVIDEND -> applyDividend(account, request, price);
+            case COUPON -> applyCoupon(account, request, price, fee, tax);
             case SPLIT -> applySplit(position, request);
             case ACQUISITION, MERGER -> applyAcquisitionOrMerger(position, request, price);
         }
@@ -132,11 +143,19 @@ public class TransactionServiceImpl implements TransactionService {
         account.setCashAmount(account.getCashAmount().subtract(cashCost));
     }
 
-    private void applySell(Account account, Position position, TransactionRequestDto request,
+    /**
+     * Bestandsabbau gegen Cash: SELL und REDEMPTION.
+     *
+     * Beide rechnen gleich, nur der Anlass unterscheidet sich - verkauft wird zum Marktpreis, bei
+     * Fälligkeit zum Rückzahlungsbetrag. Der Ø-Kaufpreis bleibt stehen: die Kostenbasis je Stück
+     * ändert sich durch einen Abgang nicht, und der realisierte Gewinn kommt ohnehin aus der
+     * FIFO-Rechnung über die Transaktionshistorie ({@link FifoLotService}).
+     */
+    private void applyDisposal(Account account, Position position, TransactionRequestDto request,
             BigDecimal price, BigDecimal fee, BigDecimal tax) {
         if (position.getTotalQuantity().compareTo(request.quantity()) < 0) {
-            throw new InsufficientFundsException(
-                    "Account " + account.getId() + " holds fewer shares than requested for this SELL");
+            throw new InsufficientFundsException("Account " + account.getId()
+                    + " holds fewer shares than requested for this " + request.transactionType());
         }
 
         position.setTotalQuantity(position.getTotalQuantity().subtract(request.quantity()));
@@ -146,6 +165,24 @@ public class TransactionServiceImpl implements TransactionService {
 
     private void applyDividend(Account account, TransactionRequestDto request, BigDecimal price) {
         BigDecimal payout = price.multiply(request.quantity());
+        account.setCashAmount(account.getCashAmount().add(inAccountCurrency(account, request, payout)));
+    }
+
+    /**
+     * Zinszahlung einer Anleihe: der Bestand bleibt, der Betrag kommt aufs Konto.
+     *
+     * Netto, also abzüglich Gebühr und Steuer - auf einen Coupon fällt in der Regel Quellensteuer an,
+     * und gutgeschrieben wird der Betrag danach. Ein Bruttoeintrag würde den Kontostand um die Steuer
+     * zu hoch fortschreiben.
+     *
+     * Damit weicht COUPON von {@link #applyDividend} ab, das brutto bucht und die gespeicherten Werte
+     * für Gebühr und Steuer nicht abzieht. Dieselben Felder wirken bei den zwei Typen also
+     * unterschiedlich; die Dividende bleibt vorerst, wie sie war, weil eine Änderung dort alle
+     * bestehenden Kontostände verschöbe.
+     */
+    private void applyCoupon(Account account, TransactionRequestDto request,
+            BigDecimal price, BigDecimal fee, BigDecimal tax) {
+        BigDecimal payout = price.multiply(request.quantity()).subtract(fee).subtract(tax);
         account.setCashAmount(account.getCashAmount().add(inAccountCurrency(account, request, payout)));
     }
 
