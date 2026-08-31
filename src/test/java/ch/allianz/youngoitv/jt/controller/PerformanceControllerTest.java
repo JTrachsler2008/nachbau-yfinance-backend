@@ -274,4 +274,110 @@ class PerformanceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.moneyWeightedReturn").doesNotExist());
     }
+
+    /**
+     * Der Wertverlauf und die zeitgewichtete Rendite kommen aus einem Aufruf. Der Kurs steigt im März
+     * von 100 auf 120, also 20 % - und weil vor dem Zeitraum gekauft wurde, ist das auch die ganze
+     * Rendite des Zeitraums.
+     */
+    @Test
+    void historyReturnsTheValueSeriesAndTheTimeWeightedReturn() throws Exception {
+        givenHistorical("PHIS", date -> date.isBefore(LocalDate.of(2026, 3, 1)) ? 100 : 120);
+        givenHistorical("SPY", date -> 400);
+        String token = tokenFor("jonas");
+        long portfolioId = createPortfolio(token, "CHF");
+        long accountId = createAccount(token, portfolioId, "CHF");
+        long securityId = createSecurity(token, "PHIS", "CHF");
+        mockMvc.perform(post("/accounts/" + accountId + "/deposit")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":10000}"));
+        transact(token, accountId, String.valueOf(securityId), "BUY",
+                "\"quantity\":10,\"price\":100,\"transactionCurrency\":\"CHF\",\"transactionDate\":\"2025-12-01\"");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/history")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("from", "2026-01-01")
+                        .param("to", "2026-03-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currency").value("CHF"))
+                .andExpect(jsonPath("$.seriesFrom").value("2026-01-01"))
+                .andExpect(jsonPath("$.benchmarkSymbol").value("SPY"))
+                .andExpect(jsonPath("$.timeWeightedReturn").value(20.0))
+                .andExpect(jsonPath("$.benchmarkReturn").value(0.0))
+                .andExpect(jsonPath("$.points[0].date").value("2026-01-01"))
+                .andExpect(jsonPath("$.points[0].value").value(1000.0))
+                .andExpect(jsonPath("$.points[0].invested").value(1000.0))
+                .andExpect(jsonPath("$.points[0].index").value(100.0))
+                .andExpect(jsonPath("$.points[0].benchmarkIndex").value(100.0))
+                .andExpect(jsonPath("$.excluded").isEmpty());
+    }
+
+    /** Ohne Bestand keine Rendite: eine 0 % wäre eine Aussage über ein Portfolio, das es nicht gab. */
+    @Test
+    void historyHasNoReturnForAPortfolioWithoutAnyTransactions() throws Exception {
+        givenHistorical("SPY", date -> 400);
+        String token = tokenFor("klara");
+        long portfolioId = createPortfolio(token, "CHF");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/history")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("lookbackDays", "90"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.timeWeightedReturn").doesNotExist())
+                .andExpect(jsonPath("$.points[0].value").value(0.0))
+                .andExpect(jsonPath("$.points[0].index").doesNotExist());
+    }
+
+    /** Dieselben Grenzen wie bei der Risikoanalyse, weil dieselbe Auflösung dahinter steht. */
+    @Test
+    void historyRejectsALookbackOutsideTheAllowedRange() throws Exception {
+        String token = tokenFor("lena");
+        long portfolioId = createPortfolio(token, "CHF");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/history")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("lookbackDays", "5"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void historyRejectsABlankBenchmark() throws Exception {
+        String token = tokenFor("mira");
+        long portfolioId = createPortfolio(token, "CHF");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/history")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("benchmark", "  "))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** Fremdes Portfolio: die Eigentumsprüfung steckt im Dienst, der Endpunkt darf sie nicht umgehen. */
+    @Test
+    void historyOfAnotherUsersPortfolioIsForbidden() throws Exception {
+        long portfolioId = createPortfolio(tokenFor("nadja"), "CHF");
+
+        mockMvc.perform(get("/portfolios/" + portfolioId + "/history")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor("oskar")))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * Tageskurse für ein Symbol, so dass der Dienst für jeden Tag des angefragten Fensters einen
+     * Schlusskurs findet - inklusive des Vorlaufs, den er vor dem Zeitraum zusätzlich anfordert.
+     */
+    private void givenHistorical(String symbol, java.util.function.ToIntFunction<LocalDate> close) {
+        when(marketDataProvider.getHistorical(
+                        org.mockito.ArgumentMatchers.eq(symbol), any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    LocalDate start = invocation.getArgument(1);
+                    LocalDate end = invocation.getArgument(2);
+                    var history = new java.util.ArrayList<ch.allianz.youngoitv.jt.client.HistoricalPrice>();
+                    for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                        history.add(new ch.allianz.youngoitv.jt.client.HistoricalPrice(
+                                date, BigDecimal.valueOf(close.applyAsInt(date))));
+                    }
+                    return Optional.of(history);
+                });
+    }
 }

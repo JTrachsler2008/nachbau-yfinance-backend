@@ -1,15 +1,21 @@
 package ch.allianz.youngoitv.jt.controller;
 
 import ch.allianz.youngoitv.jt.dto.CurrencyAmountResponseDto;
+import ch.allianz.youngoitv.jt.dto.PortfolioHistoryResponseDto;
 import ch.allianz.youngoitv.jt.dto.PortfolioReturnsResponseDto;
 import ch.allianz.youngoitv.jt.dto.PortfolioValuationResponseDto;
+import ch.allianz.youngoitv.jt.exception.InvalidSimulationParameterException;
 import ch.allianz.youngoitv.jt.service.DividendsService;
+import ch.allianz.youngoitv.jt.service.PortfolioHistoryService;
 import ch.allianz.youngoitv.jt.service.PortfolioReturnsService;
 import ch.allianz.youngoitv.jt.service.PortfolioService;
 import ch.allianz.youngoitv.jt.service.PortfolioValuationService;
 import ch.allianz.youngoitv.jt.service.RealizedGainsService;
 import ch.allianz.youngoitv.jt.service.TransactionService;
+import ch.allianz.youngoitv.jt.util.DateRange;
 import java.security.Principal;
+import java.time.LocalDate;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,16 +26,23 @@ import org.springframework.web.bind.annotation.RestController;
  * YOUNGOITV-433: realisierte Gewinne und Dividendenerträge über die gesamte Transaktionshistorie
  * eines Portfolios, konsistent FX-konvertiert in die angeforderte Anzeigewährung.
  *
- * <p>Marktwert und geldgewichtete Rendite ({@code /valuation}, {@code /returns}) schliessen die
- * ursprünglich als Folgearbeit vermerkte Lücke aus YOUNGOITV-432 teilweise: beide brauchen einen
- * Livekurs je Position und eine Währungsumrechnung, nicht aber die vollständige historische
- * Neubewertung, die die zeitgewichtete Rendite bräuchte. {@code timeWeightedReturn} bleibt deshalb
- * weiterhin {@code null} (siehe {@code PortfolioReturnsResponseDto}), Risikokennzahlen
- * (YOUNGOITV-434) haben mit {@code PortfolioRiskServiceImpl} inzwischen einen eigenen Endpunkt.</p>
+ * <p>Marktwert und geldgewichtete Rendite ({@code /valuation}, {@code /returns}) brauchen nur einen
+ * Livekurs je Position und eine Währungsumrechnung. Die zeitgewichtete Rendite braucht mehr, nämlich
+ * eine vollständige Neubewertung an jedem Stichtag der Vergangenheit - deshalb liegt sie nicht bei
+ * {@code /returns}, sondern bei {@code /history}, zusammen mit dem Wertverlauf, der aus derselben
+ * Rechnung fällt. {@code timeWeightedReturn} in {@code PortfolioReturnsResponseDto} bleibt aus
+ * Rücksicht auf bestehende Aufrufe {@code null} und ist dort als überholt vermerkt.</p>
+ *
+ * <p>{@code /history} löst seinen Zeitraum über {@link DateRange} auf, mit denselben Grenzen und
+ * derselben Vorrangregel wie {@code /risk}: die Oberfläche bietet auf Performance- und Risikoseite
+ * dieselben Presets an, und zwei Endpunkte, die "letztes Jahr" verschieden auslegen, würden zwei
+ * Zahlen zeigen, die niemand zusammenbringt.</p>
  */
 @RestController
 @RequestMapping("/portfolios/{portfolioId}")
 public class PerformanceController {
+
+    private static final String DEFAULT_BENCHMARK = "SPY";
 
     private final PortfolioService portfolioService;
     private final TransactionService transactionService;
@@ -37,6 +50,7 @@ public class PerformanceController {
     private final DividendsService dividendsService;
     private final PortfolioValuationService portfolioValuationService;
     private final PortfolioReturnsService portfolioReturnsService;
+    private final PortfolioHistoryService portfolioHistoryService;
 
     public PerformanceController(
             PortfolioService portfolioService,
@@ -44,13 +58,15 @@ public class PerformanceController {
             RealizedGainsService realizedGainsService,
             DividendsService dividendsService,
             PortfolioValuationService portfolioValuationService,
-            PortfolioReturnsService portfolioReturnsService) {
+            PortfolioReturnsService portfolioReturnsService,
+            PortfolioHistoryService portfolioHistoryService) {
         this.portfolioService = portfolioService;
         this.transactionService = transactionService;
         this.realizedGainsService = realizedGainsService;
         this.dividendsService = dividendsService;
         this.portfolioValuationService = portfolioValuationService;
         this.portfolioReturnsService = portfolioReturnsService;
+        this.portfolioHistoryService = portfolioHistoryService;
     }
 
     @GetMapping("/realized-gains")
@@ -79,5 +95,21 @@ public class PerformanceController {
     @GetMapping("/returns")
     public PortfolioReturnsResponseDto returns(Principal principal, @PathVariable Long portfolioId) {
         return portfolioReturnsService.returns(portfolioId, principal.getName());
+    }
+
+    @GetMapping("/history")
+    public PortfolioHistoryResponseDto history(
+            Principal principal,
+            @PathVariable Long portfolioId,
+            @RequestParam(defaultValue = "365") int lookbackDays,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = DEFAULT_BENCHMARK) String benchmark) {
+        if (benchmark.isBlank()) {
+            throw new InvalidSimulationParameterException("benchmark must not be blank");
+        }
+        DateRange range = DateRange.resolve(lookbackDays, from, to);
+        return portfolioHistoryService.history(
+                portfolioId, principal.getName(), range.from(), range.to(), benchmark.trim().toUpperCase());
     }
 }
