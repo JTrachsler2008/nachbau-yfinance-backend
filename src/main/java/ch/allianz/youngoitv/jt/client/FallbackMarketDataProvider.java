@@ -29,7 +29,19 @@ public class FallbackMarketDataProvider implements MarketDataProvider {
 
     @Override
     public Optional<Quote> getQuote(String symbol) {
-        return withFallback(primary::getQuote, secondary::getQuote, symbol);
+        // Ein Quote ohne Preis zählt als kein Treffer: mehrere Aufrufer wenden ohne weitere Prüfung
+        // ein `multiply` auf `price()` an, und der primäre Anbieter antwortet gelegentlich mit einem
+        // sonst vollständigen Objekt, dem nur der Preis fehlt (etwa kurz nach dessen eigenem
+        // Neustart) - ohne diesen Filter wäre das keine RestClientException und löste damit auch
+        // keinen Fallback aus, sondern eine NullPointerException beim Aufrufer.
+        return withFallback(
+                s -> primary.getQuote(s).filter(FallbackMarketDataProvider::hasPrice),
+                s -> secondary.getQuote(s).filter(FallbackMarketDataProvider::hasPrice),
+                symbol);
+    }
+
+    private static boolean hasPrice(Quote quote) {
+        return quote.price() != null;
     }
 
     @Override
