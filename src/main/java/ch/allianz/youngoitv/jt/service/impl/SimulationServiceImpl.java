@@ -20,7 +20,9 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /**
@@ -72,25 +74,31 @@ public class SimulationServiceImpl implements SimulationService {
                 cost, quote.currency(), portfolio.getBaseCurrency(), LocalDate.now());
 
         List<Position> positions = positionRepository.findByAccountPortfolioId(portfolioId);
-        List<WeightEntry> valuedPositions = new ArrayList<>();
+        // Je Symbol ein Eintrag und nicht je Position: dasselbe Wertpapier kann in mehreren Konten
+        // desselben Portfolios liegen, und zwei Segmente mit demselben Namen sind keine Gewichtung.
+        // LinkedHashMap, damit die Reihenfolge der Positionen erhalten bleibt und die Farbzuordnung
+        // im Ring "vorher" und im Ring "nachher" dieselbe ist.
+        LinkedHashMap<String, BigDecimal> valueBySymbol = new LinkedHashMap<>();
         BigDecimal currentTotal = BigDecimal.ZERO;
         for (Position position : positions) {
             BigDecimal value = valuePosition(position, portfolio.getBaseCurrency());
             if (value != null) {
                 currentTotal = currentTotal.add(value);
-                valuedPositions.add(new WeightEntry(position.getSecurity().getSymbol(), value));
+                valueBySymbol.merge(position.getSecurity().getSymbol(), value, BigDecimal::add);
             }
         }
 
         BigDecimal simulatedTotal = currentTotal.add(costInBaseCurrency);
 
-        List<WeightItemDto> currentWeights = toWeightItems(valuedPositions, currentTotal);
+        List<WeightItemDto> currentWeights = toWeightItems(valueBySymbol, currentTotal);
 
-        List<WeightItemDto> simulatedWeights = new ArrayList<>();
-        for (WeightEntry entry : valuedPositions) {
-            simulatedWeights.add(new WeightItemDto(entry.symbol(), entry.value(), percentOf(entry.value(), simulatedTotal)));
-        }
-        simulatedWeights.add(new WeightItemDto(upperSymbol, costInBaseCurrency, percentOf(costInBaseCurrency, simulatedTotal)));
+        // Der Zukauf wächst in den bestehenden Eintrag hinein, wenn das Symbol schon im Depot liegt.
+        // Als zweiter Eintrag daneben würde er den Bestand nicht erhöhen, sondern neben ihn treten:
+        // der Vergleich vorher/nachher stellte dann für dieses Symbol den Altbestand gegen den
+        // Zukauf und meldete für einen Kauf eine gesunkene Gewichtung.
+        LinkedHashMap<String, BigDecimal> simulatedBySymbol = new LinkedHashMap<>(valueBySymbol);
+        simulatedBySymbol.merge(upperSymbol, costInBaseCurrency, BigDecimal::add);
+        List<WeightItemDto> simulatedWeights = toWeightItems(simulatedBySymbol, simulatedTotal);
 
         BigDecimal returnChangePercent = percentOf(costInBaseCurrency, currentTotal);
 
@@ -168,10 +176,10 @@ public class SimulationServiceImpl implements SimulationService {
                 .orElse(null);
     }
 
-    private List<WeightItemDto> toWeightItems(List<WeightEntry> entries, BigDecimal total) {
+    private List<WeightItemDto> toWeightItems(Map<String, BigDecimal> valueBySymbol, BigDecimal total) {
         List<WeightItemDto> items = new ArrayList<>();
-        for (WeightEntry entry : entries) {
-            items.add(new WeightItemDto(entry.symbol(), entry.value(), percentOf(entry.value(), total)));
+        for (Map.Entry<String, BigDecimal> entry : valueBySymbol.entrySet()) {
+            items.add(new WeightItemDto(entry.getKey(), entry.getValue(), percentOf(entry.getValue(), total)));
         }
         return items;
     }
@@ -183,6 +191,4 @@ public class SimulationServiceImpl implements SimulationService {
         return amount.divide(total, SCALE, RoundingMode.HALF_UP).multiply(HUNDRED).setScale(RESULT_SCALE, RoundingMode.HALF_UP);
     }
 
-    private record WeightEntry(String symbol, BigDecimal value) {
-    }
 }
